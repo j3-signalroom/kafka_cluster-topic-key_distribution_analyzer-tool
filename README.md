@@ -94,3 +94,7 @@ If the connection is successful, you should see a list of topics in your Kafka c
 ## **2.0 How the Tool Works**
 
 ## **3.0 Resources**
+
+- [The Importance of Standardized Hashing Across Producers](https://www.confluent.io/blog/standardized-hashing-across-java-and-non-java-producers/#:~:text=Description%20*%20%E2%8E%BC%20random:%20random%20distribution.%20*,of%20key%20(NULL%20keys%20are%20randomly%20partitioned))
+
+- [librdkafka Configuration](https://docs.confluent.io/platform/current/clients/librdkafka/html/md_CONFIGURATION.html)
