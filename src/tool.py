@@ -69,9 +69,9 @@ def main():
     
     # Initialize tester
     tester = KeyDistributionTester(kafka_cluster_id=kafka_credentials[0]['kafka_cluster_id'],
-                                   bootstrap_server_uri=kafka_credentials[0]['bootstrap_server_uri'],
-                                   kafka_api_key=kafka_credentials[0]['kafka_api_key'],
-                                   kafka_api_secret=kafka_credentials[0]['kafka_api_secret'])
+                                   bootstrap_server_uri=kafka_credentials[0]['bootstrap.servers'],
+                                   kafka_api_key=kafka_credentials[0]['sasl.username'],
+                                   kafka_api_secret=kafka_credentials[0]['sasl.password'])
 
     # Run comprehensive test
     results = tester.run_comprehensive_test(topic_name=DEFAULT_KAFKA_TOPIC_NAME,
