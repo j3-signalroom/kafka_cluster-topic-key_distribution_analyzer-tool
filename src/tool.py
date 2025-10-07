@@ -5,7 +5,7 @@ from collections import defaultdict
 from confluent_kafka import Producer
 
 from utilities import setup_logging
-from src.key_distribution_tester import KeyDistributionTester
+from key_distribution_tester import KeyDistributionTester
 from confluent_credentials import (fetch_confluent_cloud_credential_via_env_file,
                                    fetch_kafka_credentials_via_env_file,
                                    fetch_kafka_credentials_via_confluent_cloud_api_key)
