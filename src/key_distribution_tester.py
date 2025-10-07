@@ -345,13 +345,13 @@ class KeyDistributionTester:
             logging.info(f"Creating Kafka topic '{topic_name}' with {partition_count} partitions")
 
             new_topic = NewTopic(topic=topic_name,
-                                partition_count=partition_count,
-                                replication_factor=replication_factor,
-                                config={
-                                    'cleanup.policy': 'delete',
-                                    'retention.ms': retention_policy,
-                                    'compression.type': 'lz4'
-                                })
+                                 num_partitions=partition_count,
+                                 replication_factor=replication_factor,
+                                 config={
+                                     'cleanup.policy': 'delete',
+                                     'retention.ms': retention_policy,
+                                     'compression.type': 'lz4'
+                                 })
             
             futures = self.admin_client.create_topics([new_topic])
             
