@@ -5,7 +5,7 @@ from collections import defaultdict
 from confluent_kafka import Producer
 
 from utilities import setup_logging
-from src.key_distribution_tester import KeyDistributionTester
+from key_distribution_tester import KeyDistributionTester
 from confluent_credentials import (fetch_confluent_cloud_credential_via_env_file,
                                    fetch_kafka_credentials_via_env_file,
                                    fetch_kafka_credentials_via_confluent_cloud_api_key)
@@ -49,15 +49,15 @@ def main():
         return
     
     # Fetch Confluent Cloud credentials from environment variable or AWS Secrets Manager
-    metrics_config = fetch_confluent_cloud_credential_via_env_file(use_aws_secrets_manager)
-    if not metrics_config:
+    cc_credential = fetch_confluent_cloud_credential_via_env_file(use_aws_secrets_manager)
+    if not cc_credential:
         return
     
     # Fetch Kafka credentials
     if use_confluent_cloud_api_key_to_fetch_resource_credentials:
         # Read the Kafka Cluster credentials using Confluent Cloud API key
         kafka_credentials = fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id, 
-                                                                                metrics_config, 
+                                                                                cc_credential, 
                                                                                 environment_filter, 
                                                                                 kafka_cluster_filter)
     else:
@@ -68,10 +68,10 @@ def main():
         return
     
     # Initialize tester
-    tester = KeyDistributionTester(kafka_cluster_id=kafka_credentials['kafka_cluster_id'],
-                                   bootstrap_server_uri=kafka_credentials['bootstrap_server_uri'],
-                                   kafka_api_key=kafka_credentials['kafka_api_key'],
-                                   kafka_api_secret=kafka_credentials['kafka_api_secret'])
+    tester = KeyDistributionTester(kafka_cluster_id=kafka_credentials[0]['kafka_cluster_id'],
+                                   bootstrap_server_uri=kafka_credentials[0]['bootstrap_server_uri'],
+                                   kafka_api_key=kafka_credentials[0]['kafka_api_key'],
+                                   kafka_api_secret=kafka_credentials[0]['kafka_api_secret'])
 
     # Run comprehensive test
     results = tester.run_comprehensive_test(topic_name=DEFAULT_KAFKA_TOPIC_NAME,
@@ -79,14 +79,25 @@ def main():
                                             replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                                             data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
                                             record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
-    
+
+    logging.info("Comprehensive test results: %s", results)
+
     # Optional: Test with different key patterns
     logging.info("="*DEFAULT_CHARACTER_REPEAT)
     logging.info("Testing with skewed key distribution...")
 
     # Test skewed distribution
     producer = Producer({
-        'bootstrap.servers': 'localhost:9092'
+        'bootstrap.servers': kafka_credentials[0]['bootstrap_server_uri'],
+        'security.protocol': "SASL_SSL",
+        'sasl.mechanism': "PLAIN",
+        'sasl.username': kafka_credentials[0]['kafka_api_key'],
+        'sasl.password': kafka_credentials[0]['kafka_api_secret'],
+        'acks': 'all',
+        'retries': 5,
+        'linger.ms': 10,
+        'batch.size': 16384,
+        'buffer.memory': 33554432,
     })
 
     def delivery_report(error_message, record):

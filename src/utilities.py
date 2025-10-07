@@ -3,7 +3,8 @@ from pathlib import Path
 import logging
 import logging.config
 
-from constants import (DEFAULT_TOOL_LOG_FILE, DEFAULT_TOOL_LOG_FORMAT)
+from constants import (DEFAULT_TOOL_LOG_FILE, 
+                       DEFAULT_TOOL_LOG_FORMAT)
 
 
 __copyright__  = "Copyright (c) 2025 Jeffrey Jonathan Jennings"
