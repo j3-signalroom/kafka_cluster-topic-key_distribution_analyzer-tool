@@ -54,7 +54,22 @@ class KeyDistributionTester:
         }
         self.admin_client = AdminClient(config)
 
-        # Setup the Kafka Producer config for sending records
+        # Setup the Kafka Consumer config
+        self.kafka_consumer_config = {
+            **config,
+            'auto.offset.reset': 'latest',
+            'enable.auto.commit': False,
+            'session.timeout.ms': 45000,
+            'request.timeout.ms': 30000,
+            'fetch.min.bytes': 1,
+            'log_level': 3,            
+            'enable.partition.eof': True,
+            'fetch.message.max.bytes': 10485760, # 10MB max message size
+            'queued.min.messages': 1000,     
+            'enable.metrics.push': False         # Disable metrics pushing for consumers to registered JMX MBeans.  However, is really being set to False to not expose unneccessary noise to the logging output
+        }
+
+        # Setup the Kafka Producer config
         self.kafka_producer_config = {
             **config,
             'acks': 'all',
@@ -131,7 +146,7 @@ class KeyDistributionTester:
         logging.info("=== Key Distribution Analysis ===")
         
         # Records per partition
-        partition_counts = {p: len(keys) for p, keys in partition_mapping.items()}
+        partition_counts = {partition: len(keys) for partition, keys in partition_mapping.items()}
         total_records = sum(partition_counts.values())
 
         logging.info("Total records: %d", total_records)
@@ -182,14 +197,12 @@ class KeyDistributionTester:
     
     def consume_and_analyze(self, topic_name, timeout_ms=DEFAULT_TOPIC_CONSUMER_TIMEOUT_MS):
         """Consume records and analyze actual distribution"""
-        consumer = Consumer(
-            topic_name,
-            bootstrap_servers=self.bootstrap_server_uri,
-            auto_offset_reset='earliest',
-            value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-            key_deserializer=lambda m: m.decode('utf-8') if m else None,
-            consumer_timeout_ms=timeout_ms
-        )
+
+        self.kafka_consumer_config["topic_name"] = topic_name
+        self.kafka_consumer_config["consumer_timeout_ms"] = timeout_ms
+        self.kafka_consumer_config["key_deserializer"] = lambda m: m.decode('utf-8') if m else None
+        self.kafka_consumer_config["value_deserializer"] = lambda m: json.loads(m.decode('utf-8'))
+        consumer = Consumer(self.kafka_consumer_config)
         
         partition_data = defaultdict(list)
 
@@ -303,10 +316,11 @@ class KeyDistributionTester:
                 'cv': cv
             }
         }
-    def __create_topic_if_not_exists(self, partition_count: int, replication_factor: int, data_retention_in_days: int) -> None:
+    def __create_topic_if_not_exists(self, topic_name: str, partition_count: int, replication_factor: int, data_retention_in_days: int) -> None:
         """Create the results topic if it doesn't exist.
 
         Args:
+            topic_name (str): Name of the Kafka topic.
             partition_count (int): Number of partitions for the topic.
             replication_factor (int): Replication factor for the topic.
             data_retention_in_days (int): Data retention period in days.
@@ -319,18 +333,18 @@ class KeyDistributionTester:
         
         # If topic exists, verify retention policy
         retention_policy = '-1' if data_retention_in_days == 0 else str(data_retention_in_days * 24 * 60 * 60 * 1000)  # Convert days to milliseconds
-        if self.topic_name in topic_list.topics:
-            logging.info(f"Kafka topic '{self.topic_name}' already exists but will verify retention policy")
+        if topic_name in topic_list.topics:
+            logging.info(f"Kafka topic '{topic_name}' already exists but will verify retention policy")
 
             # Update existing topic retention policy
-            resource = ConfigResource(ConfigResource.Type.TOPIC, self.topic_name)
+            resource = ConfigResource(ConfigResource.Type.TOPIC, topic_name)
             resource.set_config('retention.ms', retention_policy)
             self.admin_client.alter_configs([resource])
         else:        
             # Otherwise, create new topic
-            logging.info(f"Creating Kafka topic '{self.topic_name}' with {partition_count} partitions")
+            logging.info(f"Creating Kafka topic '{topic_name}' with {partition_count} partitions")
 
-            new_topic = NewTopic(topic=self.topic_name,
+            new_topic = NewTopic(topic=topic_name,
                                 partition_count=partition_count,
                                 replication_factor=replication_factor,
                                 config={
