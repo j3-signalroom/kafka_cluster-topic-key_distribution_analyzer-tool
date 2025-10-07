@@ -9,9 +9,12 @@ import pandas as pd
 import logging
 
 from utilities import setup_logging
-from constants import (DEFAULT_TOPIC_PARTITION_COUNT,
-                       DEFAULT_TOPIC_RECORD_COUNT,
-                       DEFAULT_TOPIC_CONSUMER_TIMEOUT_MS)
+from constants import (DEFAULT_TOPIC_CONSUMER_TIMEOUT_MS,
+                       DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
+                       DEFAULT_KAFKA_TOPIC_RECORD_COUNT,
+                       DEFAULT_KAFKA_TOPIC_NAME,
+                       DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
+                       DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
 
 
 __copyright__  = "Copyright (c) 2025 Jeffrey Jonathan Jennings"
@@ -26,7 +29,7 @@ __status__     = "dev"
 logger = setup_logging()
 
 
-class KeyDistributionTest:
+class KeyDistributionTester:
     """Class to test and analyze key distribution in Kafka topics."""
 
     def __init__(self, kafka_cluster_id: str, bootstrap_server_uri: str, kafka_api_key: str, kafka_api_secret: str):
@@ -61,14 +64,33 @@ class KeyDistributionTest:
             'buffer.memory': 33554432,
         }
         
-    def produce_test_records(self, topic_name, record_count=DEFAULT_TOPIC_RECORD_COUNT):
+    def produce_test_records(self, topic_name, record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
         """Produce test records with different key patterns"""
+
+        def delivery_callback(error_message: str, record) -> None:
+            """Callback invoked when a message is delivered or fails.
+
+            Args:
+                error_message (str): Error information if delivery failed, else None.
+                record: The message that was produced.
+
+            Return(s):
+                None
+            """
+            if error_message:
+                self.failed_count += 1
+                logging.error(f"Message delivery failed: {error_message}")
+            else:
+                self.delivered_count += 1
+                logging.debug(f"Message delivered to {record.topic()}[{record.partition()}]")
+                
         producer = Producer(
             bootstrap_servers=self.bootstrap_server_uri,
             key_serializer=lambda k: str(k).encode('utf-8'),
-            value_serializer=lambda v: json.dumps(v).encode('utf-8')
+            value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+            on_delivery=delivery_callback
         )
-        
+
         partition_mapping = defaultdict(list)
         key_patterns = ["user-", "order-", "event-"]
 
@@ -222,12 +244,17 @@ class KeyDistributionTest:
         plt.tight_layout()
         plt.show()
     
-    def run_comprehensive_test(self, topic_name='test-distribution', partition_count=DEFAULT_TOPIC_PARTITION_COUNT, record_count=DEFAULT_TOPIC_RECORD_COUNT):
+    def run_comprehensive_test(self,
+                               topic_name=DEFAULT_KAFKA_TOPIC_NAME, 
+                               partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT, 
+                               replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR, 
+                               data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS, 
+                               record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
         """Run a comprehensive key distribution test"""
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
         
         # 1. Create topic
-        self.__create_topic_if_not_exists(topic_name, partition_count)
+        self.__create_topic_if_not_exists(topic_name, partition_count, replication_factor, data_retention_in_days)
         
         # 2. Produce records
         partition_mapping = self.produce_test_records(topic_name, record_count)

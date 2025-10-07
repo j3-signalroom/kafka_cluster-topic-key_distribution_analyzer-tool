@@ -1,4 +1,4 @@
-# Kafka Cluster Topic Key Distribution Test Tool
+# Kafka Cluster Topic Key Distribution Tester Tool
 
 **Table of Contents**
 
@@ -21,7 +21,7 @@
 ### 1.1 Download the Tool
 Clone the repo:
     ```shell
-    git clone https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution_test-tool.git
+    git clone https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution_tester-tool.git
     ```
 
 Since this project was built using [**`uv`**](https://docs.astral.sh/uv/), please [install](https://docs.astral.sh/uv/getting-started/installation/) it, and then run the following command to install all the project dependencies:
@@ -37,10 +37,10 @@ Now, you need to set up the tool by creating a `.env` file in the root directory
 
 **Navigate to the Project Root Directory**
 
-Open your Terminal and navigate to the root folder of the `kafka_cluster-topic-key_distribution_test-tool/` repository that you have cloned. You can do this by executing:
+Open your Terminal and navigate to the root folder of the `kafka_cluster-topic-key_distribution_tester-tool/` repository that you have cloned. You can do this by executing:
 
 ```shell
-cd path/to/kafka_cluster-topic-key_distribution_test-tool/
+cd path/to/kafka_cluster-topic-key_distribution_tester-tool/
 ```
 
 > Replace `path/to/` with the actual path where your repository is located.
