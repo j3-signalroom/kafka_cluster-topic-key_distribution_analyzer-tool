@@ -23,27 +23,27 @@ logger = setup_logging()
 
 
 def fetch_confluent_cloud_credential_via_env_file(use_aws_secrets_manager: bool) -> Dict:
-    """Fetch Confluent Cloud credentials from .env file or AWS Secrets Manager.
+    """Fetch Confluent Cloud credential from .env file or AWS Secrets Manager.
 
     Return(s):
-        Dict: Confluent Cloud credentials dictionary.
+        Dict: Confluent Cloud credential dictionary.
     """
     try:
-        # Check if using AWS Secrets Manager for credentials retrieval
+        # Check if using AWS Secrets Manager for credential retrieval
         if use_aws_secrets_manager:
             cc_api_secrets_path = json.loads(os.getenv("CONFLUENT_CLOUD_API_SECRET_PATH", "{}"))
-            cc_credentials, error_message = get_secrets(cc_api_secrets_path["region_name"], cc_api_secrets_path["secret_name"])
-            if cc_credentials == {}:
+            cc_credential, error_message = get_secrets(cc_api_secrets_path["region_name"], cc_api_secrets_path["secret_name"])
+            if cc_credential == {}:
                 logging.error("FAILED TO RETRIEVE CONFLUENT CLOUD API KEY/SECRET FROM AWS SECRETS MANAGER BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", error_message)
                 return {}
 
-            logging.info("Retrieving the Confluent Cloud credentials from the AWS Secrets Manager.")
+            logging.info("Retrieving the Confluent Cloud credential from the AWS Secrets Manager.")
 
-            return cc_credentials
+            return cc_credential
         else:
-            cc_credentials = json.loads(os.getenv("CONFLUENT_CLOUD_CREDENTIAL", "{}"))
-            logging.info("Retrieving the Confluent Cloud credentials from the .env file.")
-            return cc_credentials
+            cc_credential = json.loads(os.getenv("CONFLUENT_CLOUD_CREDENTIAL", "{}"))
+            logging.info("Retrieving the Confluent Cloud credential from the .env file.")
+            return cc_credential
 
     except Exception as e:
         logging.error("THE APPLICATION FAILED TO READ CONFLUENT CLOUD CONFIGURATION SETTINGS BECAUSE OF THE FOLLOWING ERROR: %s", e)
@@ -51,14 +51,14 @@ def fetch_confluent_cloud_credential_via_env_file(use_aws_secrets_manager: bool)
     
 
 def fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id: str, 
-                                                        environment_config: Dict, 
+                                                        cc_credential: Dict, 
                                                         environment_filter: str | None = None, 
                                                         kafka_cluster_filter: str | None = None) -> list[Dict]:
     """Fetch Kafka credentials using Confluent Cloud API key.
     
     Args:
         principal_id (str): The Principal ID of the Confluent Cloud account running the tool
-        environment_config (Dict): Confluent Cloud API credentials
+        cc_credential (Dict): Confluent Cloud API credential
         environment_filter (str | None): Optional filter for specific environment IDs
         kafka_cluster_filter (str | None): Optional filter for specific Kafka cluster IDs
 
@@ -68,8 +68,8 @@ def fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id: str,
     kafka_credentials = []
 
     # Instantiate the EnvironmentClient and IamClient classes.
-    environment_client = EnvironmentClient(environment_config=environment_config)
-    iam_client = IamClient(iam_config=environment_config)
+    environment_client = EnvironmentClient(environment_config=cc_credential)
+    iam_client = IamClient(iam_config=cc_credential)
 
     http_status_code, error_message, environments = environment_client.get_environment_list()
  

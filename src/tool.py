@@ -49,15 +49,15 @@ def main():
         return
     
     # Fetch Confluent Cloud credentials from environment variable or AWS Secrets Manager
-    metrics_config = fetch_confluent_cloud_credential_via_env_file(use_aws_secrets_manager)
-    if not metrics_config:
+    cc_credential = fetch_confluent_cloud_credential_via_env_file(use_aws_secrets_manager)
+    if not cc_credential:
         return
     
     # Fetch Kafka credentials
     if use_confluent_cloud_api_key_to_fetch_resource_credentials:
         # Read the Kafka Cluster credentials using Confluent Cloud API key
         kafka_credentials = fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id, 
-                                                                                metrics_config, 
+                                                                                cc_credential, 
                                                                                 environment_filter, 
                                                                                 kafka_cluster_filter)
     else:
