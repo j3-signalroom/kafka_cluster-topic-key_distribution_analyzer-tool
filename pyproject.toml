@@ -1,12 +1,12 @@
 [project]
 name = "kafka-cluster-topic-key-distribution-analyzer-tool"
 version = "0.01.00.000"
-description = "Kafka Topic Key Distribution Test Tool"
+description = "Kafka Topic Key Distribution Analyzer Tool"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "aws-clients-python-lib>=0.10.0.0",
-    "cc-clients-python-lib>=0.30.1.0",
+    "cc-clients-python-lib>=0.30.3.0",
     "confluent-kafka>=2.11.1",
     "dotenv>=0.9.9",
     "matplotlib>=3.10.6",
