@@ -1,4 +1,7 @@
 # Kafka Cluster Topic Key Distribution Tester Tool
+Kafka key distribution explains how Kafka assigns records to partitions within a topic based on their record key. It affects load balancing, order, and parallelism across partitions—key factors for Kafka’s performance and scalability. Without proper key distribution, your topic can develop hot partitions. A hot partition in Kafka is one that receives or processes an unusually high amount of data or traffic compared to others in the same topic. This imbalance causes uneven load across brokers and consumers, which can reduce overall performance and throughput in the Kafka cluster.
+
+This tool helps you test and analyze how keys are distributed in a Kafka topic within your cluster. It generates a specified number of records with different key patterns to a given topic, then consumes those records to examine how they are spread across the topic’s partitions. The tool offers insights into the effectiveness of your key distribution strategy and can help identify potential issues like hot partitions.
 
 **Table of Contents**
 

@@ -92,6 +92,8 @@ class KeyDistributionTester:
             None
         """
         try:
+            logging.info(f"Message delivered to partition {record.partition()}")
+            logging.info(f"Message key: {record.key().decode('utf-8')}")
             self.partition_mapping[record.partition()].append(record.key().decode('utf-8'))
         except Exception as e:
             logging.error(f"Error Message, {error_message} in delivery callback: {e}")
@@ -273,14 +275,14 @@ class KeyDistributionTester:
         self.__create_topic_if_not_exists(topic_name, partition_count, replication_factor, data_retention_in_days)
         
         # 2. Produce records
-        partition_mapping = self.produce_test_records(topic_name, record_count)
+        self.produce_test_records(topic_name, record_count)
         
         # 3. Analyze distribution
-        partition_counts, key_patterns = self.analyze_distribution(partition_mapping)
-        
+        partition_counts, key_patterns = self.analyze_distribution(self.partition_mapping)
+
         # 4. Test hash distribution
         all_keys = []
-        for keys in partition_mapping.values():
+        for keys in self.partition_mapping.values():
             all_keys.extend(keys)
         
         hash_distribution = self.test_hash_distribution(all_keys, partition_count)
@@ -294,8 +296,7 @@ class KeyDistributionTester:
             logging.info("Partition %d: Actual=%d, Theoretical=%d", partition, actual, theoretical)
         
         # 6. Visualize results
-        self.visualize_distribution(partition_counts, 
-                                  f"Actual Distribution - {topic_name}")
+        self.visualize_distribution(partition_counts, f"Actual Distribution - {topic_name}")
         
         # 7. Calculate distribution quality metrics
         counts = list(partition_counts.values())
@@ -319,6 +320,7 @@ class KeyDistributionTester:
                 'cv': cv
             }
         }
+    
     def __create_topic_if_not_exists(self, topic_name: str, partition_count: int, replication_factor: int, data_retention_in_days: int) -> None:
         """Create the results topic if it doesn't exist.
 
