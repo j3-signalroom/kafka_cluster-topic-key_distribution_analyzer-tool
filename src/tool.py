@@ -88,11 +88,11 @@ def main():
 
     # Test skewed distribution
     producer = Producer({
-        'bootstrap.servers': kafka_credentials[0]['bootstrap_server_uri'],
+        'bootstrap.servers': kafka_credentials[0]['bootstrap.servers'],
         'security.protocol': "SASL_SSL",
         'sasl.mechanism': "PLAIN",
-        'sasl.username': kafka_credentials[0]['kafka_api_key'],
-        'sasl.password': kafka_credentials[0]['kafka_api_secret'],
+        'sasl.username': kafka_credentials[0]['sasl.username'],
+        'sasl.password': kafka_credentials[0]['sasl.password'],
         'acks': 'all',
         'retries': 5,
         'linger.ms': 10,
