@@ -551,7 +551,7 @@ wheels = [
 ]
 
 [[package]]
-name = "kafka-cluster-topic-key-distribution-test-tool"
+name = "kafka-cluster-topic-key-distribution-analyzer-tool"
 version = "0.1.0.0"
 source = { virtual = "." }
 dependencies = [
