@@ -1,4 +1,4 @@
-# Kafka Cluster Topic Key Distribution Tester Tool
+# Kafka Cluster Topic Key Distribution Analyzer Tool
 Kafka key distribution explains how Kafka assigns records to partitions within a topic based on their record key. It affects load balancing, order, and parallelism across partitions—key factors for Kafka’s performance and scalability. Without proper key distribution, your topic can develop hot partitions. A hot partition in Kafka is one that receives or processes an unusually high amount of data or traffic compared to others in the same topic. This imbalance causes uneven load across brokers and consumers, which can reduce overall performance and throughput in the Kafka cluster.
 
 This tool helps you test and analyze how keys are distributed in a Kafka topic within your cluster. It generates a specified number of records with different key patterns to a given topic, then consumes those records to examine how they are spread across the topic’s partitions. The tool offers insights into the effectiveness of your key distribution strategy and can help identify potential issues like hot partitions.
@@ -24,7 +24,7 @@ This tool helps you test and analyze how keys are distributed in a Kafka topic w
 ### 1.1 Download the Tool
 Clone the repo:
     ```shell
-    git clone https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution_tester-tool.git
+    git clone https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution_analyzer-tool.git
     ```
 
 Since this project was built using [**`uv`**](https://docs.astral.sh/uv/), please [install](https://docs.astral.sh/uv/getting-started/installation/) it, and then run the following command to install all the project dependencies:
@@ -40,10 +40,10 @@ Now, you need to set up the tool by creating a `.env` file in the root directory
 
 **Navigate to the Project Root Directory**
 
-Open your Terminal and navigate to the root folder of the `kafka_cluster-topic-key_distribution_tester-tool/` repository that you have cloned. You can do this by executing:
+Open your Terminal and navigate to the root folder of the `kafka_cluster-topic-key_distribution_analyzer-tool/` repository that you have cloned. You can do this by executing:
 
 ```shell
-cd path/to/kafka_cluster-topic-key_distribution_tester-tool/
+cd path/to/kafka_cluster-topic-key_distribution_analyzer-tool/
 ```
 
 > Replace `path/to/` with the actual path where your repository is located.
