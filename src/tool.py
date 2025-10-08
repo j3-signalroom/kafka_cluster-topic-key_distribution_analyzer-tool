@@ -35,12 +35,12 @@ __status__     = "dev"
 # Setup module logging
 logger = setup_logging()
 
-# Create skewed data (80% of messages go to same key pattern)
-skewed_partition_mapping = defaultdict(list)
-
 
 def main():
     """Main tool entry point."""
+
+    # Create skewed data (80% of messages go to same key pattern)
+    skewed_partition_mapping = defaultdict(list)
 
     def delivery_report(error_message, record):
         try:
@@ -118,18 +118,18 @@ def main():
     # Initialize StringSerializer
     string_serializer = StringSerializer('utf_8')
 
-    for i in range(500):
+    for id in range(500):
         # 80% of messages use the same key
-        if i < 400:
+        if id < 400:
             key_str = "hot-key-1"
         else:
-            key_str = f"cold-key-{i}"
+            key_str = f"cold-key-{id}"
         
         serialized_key = string_serializer(key_str)
 
         # value
         value_dict = {
-            "id": i,
+            "id": id,
             "key": key_str,
             "timestamp": time.time(),
             "data": f"test_record_{id}"
@@ -143,6 +143,8 @@ def main():
             value=serialized_value,
             on_delivery=delivery_report
         )
+
+        logging.info(f"Skewed Distribution Produced record with key: {key_str}")
     
     producer.flush()
     
@@ -154,13 +156,12 @@ def main():
     iam_client = IamClient(iam_config=cc_credential)
 
     # Delete all the Kafka Cluster API keys created for each Kafka Cluster instance
-    for kafka_credential in kafka_credentials.values():
-        http_status_code, error_message = iam_client.delete_api_key(api_key=kafka_credential["basic.auth.user.info"].split(":")[0])
+    for kafka_credential in kafka_credentials:
+        http_status_code, error_message = iam_client.delete_api_key(api_key=kafka_credential["sasl.username"])
         if http_status_code != HttpStatus.NO_CONTENT:
-            logging.warning("FAILED TO DELETE KAFKA CLUSTER API KEY %s FOR KAFKA CLUSTER %s BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", kafka_credential["basic.auth.user.info"].split(":")[0], kafka_credential['kafka_cluster_id'], error_message)
+            logging.warning("FAILED TO DELETE KAFKA CLUSTER API KEY %s FOR KAFKA CLUSTER %s BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'], error_message)
         else:
-            logging.info("Kafka Cluster API key %s for Kafka Cluster %s deleted successfully.", kafka_credential["basic.auth.user.info"].split(":")[0], kafka_credential['kafka_cluster_id'])
-
+            logging.info("Kafka Cluster API key %s for Kafka Cluster %s deleted successfully.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'])
 
 # Run the main function if this script is executed directly    
 if __name__ == "__main__":
