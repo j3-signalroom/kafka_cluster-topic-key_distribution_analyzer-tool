@@ -125,11 +125,11 @@ class KeyDataSkewTester:
 
             logging.info(f"Skewed Distribution Produced record with key: {key_str}")
         
-            producer.flush()
-            
-            # Analyze skewed distribution
-            skewed_counts = {p: len(keys) for p, keys in self.skewed_partition_mapping.items()}
-            self.__visualize_distribution(skewed_counts, "Skewed Distribution Example")
+        producer.flush()
+        
+        # Analyze skewed distribution
+        skewed_counts = {p: len(keys) for p, keys in self.skewed_partition_mapping.items()}
+        self.__visualize_distribution(skewed_counts, "Skewed Distribution Example")
 
     def __visualize_distribution(self, partition_counts: List, title: str):
         """Create visualization of partition distribution"""
