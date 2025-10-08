@@ -3,6 +3,7 @@ import json
 import hashlib
 from collections import defaultdict
 from confluent_kafka import Producer, Consumer
+from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.admin import AdminClient, ConfigResource, NewTopic
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -75,71 +76,73 @@ class KeyDistributionTester:
             'acks': 'all',
             'retries': 5,
             'linger.ms': 10,
-            'batch.size': 16384,
-            'buffer.memory': 33554432,
+            'batch.size': 16384
         }
-        
+
+        self.partition_mapping = defaultdict(list)
+
+    def delivery_callback(self, error_message: str, record) -> None:
+        """Callback invoked when a message is delivered or fails.
+
+        Args:
+            error_message (str): Error information if delivery failed, else None.
+            record: The message that was produced.
+
+        Return(s):
+            None
+        """
+        try:
+            self.partition_mapping[record.partition()].append(record.key().decode('utf-8'))
+        except Exception as e:
+            logging.error(f"Error Message, {error_message} in delivery callback: {e}")
+    
     def produce_test_records(self, topic_name, record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
         """Produce test records with different key patterns"""
 
-        def delivery_callback(error_message: str, record) -> None:
-            """Callback invoked when a message is delivered or fails.
-
-            Args:
-                error_message (str): Error information if delivery failed, else None.
-                record: The message that was produced.
-
-            Return(s):
-                None
-            """
-            if error_message:
-                self.failed_count += 1
-                logging.error(f"Message delivery failed: {error_message}")
-            else:
-                self.delivered_count += 1
-                logging.debug(f"Message delivered to {record.topic()}[{record.partition()}]")
-                
-        producer = Producer(
-            bootstrap_servers=self.bootstrap_server_uri,
-            key_serializer=lambda k: str(k).encode('utf-8'),
-            value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-            on_delivery=delivery_callback
-        )
-
-        partition_mapping = defaultdict(list)
+        # Initialize StringSerializer
+        string_serializer = StringSerializer('utf_8')
+        producer = Producer(self.kafka_producer_config)
         key_patterns = ["user-", "order-", "event-"]
 
         logging.info("Producing %d records...", record_count)
 
         for id in range(record_count):
-            # Generate different key patterns
-            key_pattern = key_patterns[id % len(key_patterns)]
-            key = f"{key_pattern}{id % 100}"
-            
-            record = {
-                "id": id,
-                "key": key,
-                "timestamp": time.time(),
-                "data": f"test_record_{id}"
-            }
-
-            # Send record and capture partition info
-            future = producer.send(topic_name, key=key, value=record)
-            
             try:
-                record_metadata = future.get(timeout=10)
-                partition_mapping[record_metadata.partition].append(key)
-                
-                if id % 100 == 0:
-                    logging.info("Sent record %d: key='%s' -> partition=%d", id, key, record_metadata.partition)
-                    
-            except Exception as e:
-                logging.error("Error sending record %d: %s", id, e)
+                # key
+                key_pattern = key_patterns[id % len(key_patterns)]
+                key_str = f"{key_pattern}{id % 100}"
+                serialized_key = string_serializer(key_str)
 
+                # value
+                value_dict = {
+                    "id": id,
+                    "key": key_str,
+                    "timestamp": time.time(),
+                    "data": f"test_record_{id}"
+                }
+                serialized_value = json.dumps(value_dict).encode('utf-8')
+
+                # Produce record
+                producer.produce(
+                    topic=topic_name,
+                    key=serialized_key,
+                    value=serialized_value,
+                    on_delivery=self.delivery_callback
+                )
+                producer.poll(0)
+            except BufferError:
+                logging.warning("Local producer queue is full (%d messages awaiting delivery): try again", len(producer))
+                producer.poll(1)
+                # Retry producing the record after polling
+                producer.produce(
+                    topic=topic_name,
+                    key=serialized_key,
+                    value=serialized_value,
+                    on_delivery=self.delivery_callback
+                )
+            except Exception as e:
+                logging.error("Error producing record %d: %s", id, e)
         producer.flush()
-        producer.close()
-        
-        return partition_mapping
     
     def analyze_distribution(self, partition_mapping):
         """Analyze key distribution across partitions"""
@@ -209,12 +212,12 @@ class KeyDistributionTester:
         logging.info("Consuming records from topic '%s'...", topic_name)
 
         try:
-            for message in consumer:
-                partition_data[message.partition].append({
-                    'key': message.key,
-                    'value': message.value,
-                    'offset': message.offset,
-                    'timestamp': message.timestamp
+            for record in consumer:
+                partition_data[record.partition].append({
+                    'key': record.key,
+                    'value': record.value,
+                    'offset': record.offset,
+                    'timestamp': record.timestamp
                 })
         except Exception as e:
             logging.error("Consumer timeout or error: %s", e)
