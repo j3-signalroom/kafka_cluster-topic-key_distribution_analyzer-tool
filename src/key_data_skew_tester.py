@@ -77,7 +77,11 @@ class KeyDataSkewTester:
         logging.info("Testing with skewed key distribution...")
 
         # 1. Create topic
-        create_topic_if_not_exists(topic_name, partition_count, replication_factor, data_retention_in_days)
+        create_topic_if_not_exists(self.admin_client,
+                                   topic_name,
+                                   partition_count, 
+                                   replication_factor, 
+                                   data_retention_in_days)
 
         # Test skewed distribution
         producer = Producer({
