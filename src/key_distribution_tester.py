@@ -273,7 +273,11 @@ class KeyDistributionTester:
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
         
         # 1. Create topic
-        create_topic_if_not_exists(topic_name, partition_count, replication_factor, data_retention_in_days)
+        create_topic_if_not_exists(self.admin_client,
+                                   topic_name, 
+                                   partition_count, 
+                                   replication_factor, 
+                                   data_retention_in_days)
         
         # 2. Produce records
         self.__produce_test_records(topic_name, record_count)

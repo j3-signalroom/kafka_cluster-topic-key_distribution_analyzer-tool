@@ -61,10 +61,11 @@ def setup_logging(log_file: str = DEFAULT_TOOL_LOG_FILE) -> logging.Logger:
 
     return logging.getLogger()
 
-def create_topic_if_not_exists(self, topic_name: str, partition_count: int, replication_factor: int, data_retention_in_days: int) -> None:
+def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: int, replication_factor: int, data_retention_in_days: int) -> None:
     """Create the results topic if it doesn't exist.
 
     Args:
+        admin_client: Kafka AdminClient instance.
         topic_name (str): Name of the Kafka topic.
         partition_count (int): Number of partitions for the topic.
         replication_factor (int): Replication factor for the topic.
@@ -74,7 +75,7 @@ def create_topic_if_not_exists(self, topic_name: str, partition_count: int, repl
         None
     """
     # Check if topic exists
-    topic_list = self.admin_client.list_topics(timeout=10)
+    topic_list = admin_client.list_topics(timeout=10)
     
     # If topic exists, verify retention policy
     retention_policy = '-1' if data_retention_in_days == 0 else str(data_retention_in_days * 24 * 60 * 60 * 1000)  # Convert days to milliseconds
@@ -84,7 +85,7 @@ def create_topic_if_not_exists(self, topic_name: str, partition_count: int, repl
         # Update existing topic retention policy
         resource = ConfigResource(ConfigResource.Type.TOPIC, topic_name)
         resource.set_config('retention.ms', retention_policy)
-        self.admin_client.alter_configs([resource])
+        admin_client.alter_configs([resource])
     else:        
         # Otherwise, create new topic
         logging.info(f"Creating Kafka topic '{topic_name}' with {partition_count} partitions")
@@ -98,7 +99,7 @@ def create_topic_if_not_exists(self, topic_name: str, partition_count: int, repl
                                     'compression.type': 'lz4'
                                 })
         
-        futures = self.admin_client.create_topics([new_topic])
+        futures = admin_client.create_topics([new_topic])
         
         # Wait for topic creation
         for topic, future in futures.items():
