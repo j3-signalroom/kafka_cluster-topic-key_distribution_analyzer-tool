@@ -1,21 +1,17 @@
-import json
 import os
-import time
 from dotenv import load_dotenv
 import logging
 from collections import defaultdict
-from confluent_kafka import Producer
-from confluent_kafka.serialization import StringSerializer
 
 from utilities import setup_logging
 from key_distribution_tester import KeyDistributionTester
+from key_data_skew_tester import KeyDataSkewTester
 from confluent_credentials import (fetch_confluent_cloud_credential_via_env_file,
                                    fetch_kafka_credentials_via_env_file,
                                    fetch_kafka_credentials_via_confluent_cloud_api_key)
 from cc_clients_python_lib.iam_client import IamClient
 from cc_clients_python_lib.http_status import HttpStatus
-from constants import (DEFAULT_CHARACTER_REPEAT,
-                       DEFAULT_USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS,
+from constants import (DEFAULT_USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS,
                        DEFAULT_KAFKA_TOPIC_NAME,
                        DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
                        DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
@@ -82,75 +78,36 @@ def main():
 
     if not kafka_credentials:
         return
-    
-    # Initialize tester
-    tester = KeyDistributionTester(kafka_cluster_id=kafka_credentials[0]['kafka_cluster_id'],
-                                   bootstrap_server_uri=kafka_credentials[0]['bootstrap.servers'],
-                                   kafka_api_key=kafka_credentials[0]['sasl.username'],
-                                   kafka_api_secret=kafka_credentials[0]['sasl.password'])
 
-    # Run comprehensive test
-    results = tester.run_comprehensive_test(topic_name=DEFAULT_KAFKA_TOPIC_NAME,
-                                            partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
-                                            replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
-                                            data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
-                                            record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
+    # Initialize Key Distribution Tester
+    distribution_test = KeyDistributionTester(kafka_cluster_id=kafka_credentials[0]['kafka_cluster_id'],
+                                              bootstrap_server_uri=kafka_credentials[0]['bootstrap.servers'],
+                                              kafka_api_key=kafka_credentials[0]['sasl.username'],
+                                              kafka_api_secret=kafka_credentials[0]['sasl.password'])
 
-    logging.info("Comprehensive test results: %s", results)
+    # Run Key Distribution Test
+    distribution_results = distribution_test.run_test(topic_name=DEFAULT_KAFKA_TOPIC_NAME,
+                                                      partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
+                                                      replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
+                                                      data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
+                                                      record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
 
-    # Optional: Test with different key patterns
-    logging.info("="*DEFAULT_CHARACTER_REPEAT)
-    logging.info("Testing with skewed key distribution...")
+    logging.info("Key Distribution Test Results: %s", distribution_results)
 
-    # Test skewed distribution
-    producer = Producer({
-        'bootstrap.servers': kafka_credentials[0]['bootstrap.servers'],
-        'security.protocol': "SASL_SSL",
-        'sasl.mechanism': "PLAIN",
-        'sasl.username': kafka_credentials[0]['sasl.username'],
-        'sasl.password': kafka_credentials[0]['sasl.password'],
-        'acks': 'all',
-        'retries': 5,
-        'linger.ms': 10,
-        'batch.size': 16384
-    })
+    # Initialize Key Data Skew Tester
+    data_skew_test = KeyDataSkewTester(kafka_cluster_id=kafka_credentials[0]['kafka_cluster_id'],
+                                       bootstrap_server_uri=kafka_credentials[0]['bootstrap.servers'],
+                                       kafka_api_key=kafka_credentials[0]['sasl.username'],
+                                       kafka_api_secret=kafka_credentials[0]['sasl.password'])
 
-    # Initialize StringSerializer
-    string_serializer = StringSerializer('utf_8')
+    # Run Key Data Skew Test
+    data_skew_results = data_skew_test.run_test(topic_name=DEFAULT_KAFKA_TOPIC_NAME,
+                                                partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
+                                                replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
+                                                data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
+                                                record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
 
-    for id in range(500):
-        # 80% of messages use the same key
-        if id < 400:
-            key_str = "hot-key-1"
-        else:
-            key_str = f"cold-key-{id}"
-        
-        serialized_key = string_serializer(key_str)
-
-        # value
-        value_dict = {
-            "id": id,
-            "key": key_str,
-            "timestamp": time.time(),
-            "data": f"test_record_{id}"
-        }
-        serialized_value = json.dumps(value_dict).encode('utf-8')
-
-        # Produce record
-        producer.produce(
-            topic=DEFAULT_KAFKA_TOPIC_NAME,
-            key=serialized_key,
-            value=serialized_value,
-            on_delivery=delivery_report
-        )
-
-        logging.info(f"Skewed Distribution Produced record with key: {key_str}")
-    
-    producer.flush()
-    
-    # Analyze skewed distribution
-    skewed_counts = {p: len(keys) for p, keys in skewed_partition_mapping.items()}
-    tester.visualize_distribution(skewed_counts, "Skewed Distribution Example")
+    logging.info("Key Data Skew Test Results: %s", data_skew_results)
 
     # Instantiate the IamClient class.
     iam_client = IamClient(iam_config=cc_credential)
@@ -162,6 +119,7 @@ def main():
             logging.warning("FAILED TO DELETE KAFKA CLUSTER API KEY %s FOR KAFKA CLUSTER %s BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'], error_message)
         else:
             logging.info("Kafka Cluster API key %s for Kafka Cluster %s deleted successfully.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'])
+
 
 # Run the main function if this script is executed directly    
 if __name__ == "__main__":

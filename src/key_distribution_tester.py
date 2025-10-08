@@ -4,12 +4,12 @@ import hashlib
 from collections import defaultdict
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.serialization import StringSerializer
-from confluent_kafka.admin import AdminClient, ConfigResource, NewTopic
+from confluent_kafka.admin import AdminClient
 import matplotlib.pyplot as plt
 import pandas as pd
 import logging
 
-from utilities import setup_logging
+from utilities import setup_logging, create_topic_if_not_exists
 from constants import (DEFAULT_TOPIC_CONSUMER_TIMEOUT_MS,
                        DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
                        DEFAULT_KAFKA_TOPIC_RECORD_COUNT,
@@ -81,7 +81,7 @@ class KeyDistributionTester:
 
         self.partition_mapping = defaultdict(list)
 
-    def delivery_callback(self, error_message: str, record) -> None:
+    def __delivery_callback(self, error_message: str, record) -> None:
         """Callback invoked when a message is delivered or fails.
 
         Args:
@@ -98,7 +98,7 @@ class KeyDistributionTester:
         except Exception as e:
             logging.error(f"Error Message, {error_message} in delivery callback: {e}")
     
-    def produce_test_records(self, topic_name, record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
+    def __produce_test_records(self, topic_name, record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
         """Produce test records with different key patterns"""
 
         # Initialize StringSerializer
@@ -129,7 +129,7 @@ class KeyDistributionTester:
                     topic=topic_name,
                     key=serialized_key,
                     value=serialized_value,
-                    on_delivery=self.delivery_callback
+                    on_delivery=self.__delivery_callback
                 )
                 producer.poll(0)
             except BufferError:
@@ -140,13 +140,13 @@ class KeyDistributionTester:
                     topic=topic_name,
                     key=serialized_key,
                     value=serialized_value,
-                    on_delivery=self.delivery_callback
+                    on_delivery=self.__delivery_callback
                 )
             except Exception as e:
                 logging.error("Error producing record %d: %s", id, e)
         producer.flush()
     
-    def analyze_distribution(self, partition_mapping):
+    def __analyze_distribution(self, partition_mapping):
         """Analyze key distribution across partitions"""
         logging.info("=== Key Distribution Analysis ===")
         
@@ -179,8 +179,9 @@ class KeyDistributionTester:
 
         return partition_counts, key_patterns
     
-    def test_hash_distribution(self, keys, partition_count):
+    def __test_hash_distribution(self, keys, partition_count):
         """Test how keys would be distributed using default hash function"""
+
         logging.info("=== Hash Function Distribution Test ===")
         
         hash_distribution = defaultdict(int)
@@ -234,7 +235,7 @@ class KeyDistributionTester:
 
         return partition_data
     
-    def visualize_distribution(self, partition_counts, title="Key Distribution Across Partitions"):
+    def __visualize_distribution(self, partition_counts, title="Key Distribution Across Partitions"):
         """Create visualization of partition distribution"""
         partitions = list(partition_counts.keys())
         counts = list(partition_counts.values())
@@ -262,30 +263,30 @@ class KeyDistributionTester:
         plt.tight_layout()
         plt.show()
     
-    def run_comprehensive_test(self,
-                               topic_name=DEFAULT_KAFKA_TOPIC_NAME, 
-                               partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT, 
-                               replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR, 
-                               data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS, 
-                               record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
+    def run_test(self,
+                 topic_name=DEFAULT_KAFKA_TOPIC_NAME, 
+                 partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT, 
+                 replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR, 
+                 data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS, 
+                 record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
         """Run a comprehensive key distribution test"""
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
         
         # 1. Create topic
-        self.__create_topic_if_not_exists(topic_name, partition_count, replication_factor, data_retention_in_days)
+        create_topic_if_not_exists(topic_name, partition_count, replication_factor, data_retention_in_days)
         
         # 2. Produce records
-        self.produce_test_records(topic_name, record_count)
+        self.__produce_test_records(topic_name, record_count)
         
         # 3. Analyze distribution
-        partition_counts, key_patterns = self.analyze_distribution(self.partition_mapping)
+        partition_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
 
         # 4. Test hash distribution
         all_keys = []
         for keys in self.partition_mapping.values():
             all_keys.extend(keys)
         
-        hash_distribution = self.test_hash_distribution(all_keys, partition_count)
+        hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
         
         # 5. Compare actual vs theoretical
         logging.info("=== Actual vs Theoretical Distribution ===")
@@ -296,7 +297,7 @@ class KeyDistributionTester:
             logging.info("Partition %d: Actual=%d, Theoretical=%d", partition, actual, theoretical)
         
         # 6. Visualize results
-        self.visualize_distribution(partition_counts, f"Actual Distribution - {topic_name}")
+        self.__visualize_distribution(partition_counts, f"Actual Distribution - {topic_name}")
         
         # 7. Calculate distribution quality metrics
         counts = list(partition_counts.values())
@@ -320,51 +321,3 @@ class KeyDistributionTester:
                 'cv': cv
             }
         }
-    
-    def __create_topic_if_not_exists(self, topic_name: str, partition_count: int, replication_factor: int, data_retention_in_days: int) -> None:
-        """Create the results topic if it doesn't exist.
-
-        Args:
-            topic_name (str): Name of the Kafka topic.
-            partition_count (int): Number of partitions for the topic.
-            replication_factor (int): Replication factor for the topic.
-            data_retention_in_days (int): Data retention period in days.
-        
-        Return(s):
-            None
-        """
-        # Check if topic exists
-        topic_list = self.admin_client.list_topics(timeout=10)
-        
-        # If topic exists, verify retention policy
-        retention_policy = '-1' if data_retention_in_days == 0 else str(data_retention_in_days * 24 * 60 * 60 * 1000)  # Convert days to milliseconds
-        if topic_name in topic_list.topics:
-            logging.info(f"Kafka topic '{topic_name}' already exists but will verify retention policy")
-
-            # Update existing topic retention policy
-            resource = ConfigResource(ConfigResource.Type.TOPIC, topic_name)
-            resource.set_config('retention.ms', retention_policy)
-            self.admin_client.alter_configs([resource])
-        else:        
-            # Otherwise, create new topic
-            logging.info(f"Creating Kafka topic '{topic_name}' with {partition_count} partitions")
-
-            new_topic = NewTopic(topic=topic_name,
-                                 num_partitions=partition_count,
-                                 replication_factor=replication_factor,
-                                 config={
-                                     'cleanup.policy': 'delete',
-                                     'retention.ms': retention_policy,
-                                     'compression.type': 'lz4'
-                                 })
-            
-            futures = self.admin_client.create_topics([new_topic])
-            
-            # Wait for topic creation
-            for topic, future in futures.items():
-                try:
-                    future.result()  # Block until topic is created
-                    logging.info(f"Topic '{topic}' created successfully")
-                except Exception as e:
-                    logging.error(f"Failed to create topic '{topic}': {e}")
-                    raise
