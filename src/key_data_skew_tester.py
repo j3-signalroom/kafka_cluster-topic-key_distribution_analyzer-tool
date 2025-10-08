@@ -61,8 +61,6 @@ class KeyDataSkewTester:
 
     def __delivery_report(self, error_message, record):
         try:
-            logging.info(f"Message delivered to partition {record.partition()}")
-            logging.info(f"Message key: {record.key().decode('utf-8')}")
             self.skewed_partition_mapping[record.partition()].append(record.key().decode('utf-8'))
         except Exception as e:
             logging.error(f"Error Message, {error_message} in delivery callback: {e}")
