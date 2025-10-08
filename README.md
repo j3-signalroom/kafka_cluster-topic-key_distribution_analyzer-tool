@@ -50,10 +50,10 @@ cd path/to/kafka_cluster-topic-key_distribution_analyzer-tool/
 
 Then enter the following command below to run the tool:
 ```shell
-uv run python src/tool.py
+uv run streamlit run src/tool.py
 ```
 
-#### **1.3.1 Did you notice we prefix `uv run` to `python src/tool.py`?**
+#### **1.3.1 Did you notice we prefix `uv run` to `streamlit run src/tool.py`?**
 You maybe asking yourself why.  Well, `uv` is an incredibly fast Python package installer and dependency resolver, written in [**Rust**](https://github.blog/developer-skills/programming-languages-and-frameworks/why-rust-is-the-most-admired-language-among-developers/), and designed to seamlessly replace `pip`, `pipx`, `poetry`, `pyenv`, `twine`, `virtualenv`, and more in your workflows. By prefixing `uv run` to a command, you're ensuring that the command runs in an optimal Python environment.
 
 Now, let's go a little deeper into the magic behind `uv run`:
@@ -61,7 +61,7 @@ Now, let's go a little deeper into the magic behind `uv run`:
 - If used in a project directory, `uv` will automatically create or update the project environment before running the command.
 - Outside of a project, if there's a virtual environment present in your current directory (or any parent directory), `uv` runs the command in that environment. If no environment is found, it uses the interpreter's environment.
 
-So what does this mean when we put `uv run` before `python src/tool.py`? It means `uv` takes care of all the setup—fast and seamless—right in your local environment. If you think AI/ML is magic, the work the folks at [Astral](https://astral.sh/) have done with `uv` is pure wizardry!
+So what does this mean when we put `uv run` before `streamlit run src/tool.py`? It means `uv` takes care of all the setup—fast and seamless—right in your local environment. If you think AI/ML is magic, the work the folks at [Astral](https://astral.sh/) have done with `uv` is pure wizardry!
 
 Curious to learn more about [Astral](https://astral.sh/)'s `uv`? Check these out:
 - Documentation: Learn about [`uv`](https://docs.astral.sh/uv/).

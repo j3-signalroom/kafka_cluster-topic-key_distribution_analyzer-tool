@@ -1,18 +1,17 @@
 import os
+from typing import Dict
 from dotenv import load_dotenv
 import logging
-from collections import defaultdict
+import streamlit as st
 
 from utilities import setup_logging
 from key_distribution_tester import KeyDistributionTester
 from key_data_skew_tester import KeyDataSkewTester
 from confluent_credentials import (fetch_confluent_cloud_credential_via_env_file,
-                                   fetch_kafka_credentials_via_env_file,
                                    fetch_kafka_credentials_via_confluent_cloud_api_key)
 from cc_clients_python_lib.iam_client import IamClient
 from cc_clients_python_lib.http_status import HttpStatus
-from constants import (DEFAULT_USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS,
-                       DEFAULT_KAFKA_TOPIC_NAME,
+from constants import (DEFAULT_KAFKA_TOPIC_NAME,
                        DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
                        DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                        DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
@@ -32,58 +31,49 @@ __status__     = "dev"
 logger = setup_logging()
 
 
-def main():
-    """Main tool entry point."""
-
-    # Create skewed data (80% of messages go to same key pattern)
-    skewed_partition_mapping = defaultdict(list)
-
-    def delivery_report(error_message, record):
-        try:
-            logging.info(f"Message delivered to partition {record.partition()}")
-            logging.info(f"Message key: {record.key().decode('utf-8')}")
-            skewed_partition_mapping[record.partition()].append(record.key().decode('utf-8'))
-        except Exception as e:
-            logging.error(f"Error Message, {error_message} in delivery callback: {e}")
-
+@st.cache_data(ttl=900, show_spinner="Loading Environment with Kafka Credentials...")
+def load_environment_with_kakfa_credentials() -> tuple[Dict, Dict, Dict, Dict]:
     # Load environment variables from .env file
     load_dotenv()
  
     # Fetch environment variables non-credential configuration settings
     try:
-        use_confluent_cloud_api_key_to_fetch_resource_credentials = os.getenv("USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS", DEFAULT_USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS) == "True"
         environment_filter = os.getenv("ENVIRONMENT_FILTER")
         kafka_cluster_filter = os.getenv("KAFKA_CLUSTER_FILTER")
         principal_id = os.getenv("PRINCIPAL_ID")
         use_aws_secrets_manager = os.getenv("USE_AWS_SECRETS_MANAGER", DEFAULT_USE_AWS_SECRETS_MANAGER) == "True"
     except Exception as e:
         logging.error("THE APPLICATION FAILED TO READ CONFIGURATION SETTINGS BECAUSE OF THE FOLLOWING ERROR: %s", e)
-        return
+        return None, None, None
     
     # Fetch Confluent Cloud credentials from environment variable or AWS Secrets Manager
     cc_credential = fetch_confluent_cloud_credential_via_env_file(use_aws_secrets_manager)
     if not cc_credential:
-        return
-    
+        return None, None, None, None
+
     # Fetch Kafka credentials
-    if use_confluent_cloud_api_key_to_fetch_resource_credentials:
-        # Read the Kafka Cluster credentials using Confluent Cloud API key
-        kafka_credentials = fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id, 
-                                                                                cc_credential, 
-                                                                                environment_filter, 
-                                                                                kafka_cluster_filter)
+    # Read the Kafka Cluster credentials using Confluent Cloud API key
+    environments, kafka_clusters, kafka_credentials = fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id, cc_credential, environment_filter, kafka_cluster_filter)
+    if not environments or not kafka_clusters or not kafka_credentials:
+        return None, None, None, None
     else:
-        # Read the Kafka Cluster credentials from the environment variable or AWS Secrets Manager
-        kafka_credentials = fetch_kafka_credentials_via_env_file(use_aws_secrets_manager)
+        return cc_credential, environments, kafka_clusters, kafka_credentials
 
-    if not kafka_credentials:
-        return
+def run_tests(kafka_cluster: Dict) -> None:
+    """Run the Key Distribution and Data Skew tests.
 
+    Arg(s):
+        kafka_cluster (Dict): Kafka cluster information dictionary.
+
+    Return(s):
+        None
+    """
+    
     # Initialize Key Distribution Tester
-    distribution_test = KeyDistributionTester(kafka_cluster_id=kafka_credentials[0]['kafka_cluster_id'],
-                                              bootstrap_server_uri=kafka_credentials[0]['bootstrap.servers'],
-                                              kafka_api_key=kafka_credentials[0]['sasl.username'],
-                                              kafka_api_secret=kafka_credentials[0]['sasl.password'])
+    distribution_test = KeyDistributionTester(kafka_cluster_id=kafka_cluster['kafka_cluster_id'],
+                                              bootstrap_server_uri=kafka_cluster['bootstrap.servers'],
+                                              kafka_api_key=kafka_cluster['sasl.username'],
+                                              kafka_api_secret=kafka_cluster['sasl.password'])
 
     # Run Key Distribution Test
     distribution_results = distribution_test.run_test(topic_name=DEFAULT_KAFKA_TOPIC_NAME,
@@ -95,10 +85,10 @@ def main():
     logging.info("Key Distribution Test Results: %s", distribution_results)
 
     # Initialize Key Data Skew Tester
-    data_skew_test = KeyDataSkewTester(kafka_cluster_id=kafka_credentials[0]['kafka_cluster_id'],
-                                       bootstrap_server_uri=kafka_credentials[0]['bootstrap.servers'],
-                                       kafka_api_key=kafka_credentials[0]['sasl.username'],
-                                       kafka_api_secret=kafka_credentials[0]['sasl.password'])
+    data_skew_test = KeyDataSkewTester(kafka_cluster_id=kafka_cluster['kafka_cluster_id'],
+                                       bootstrap_server_uri=kafka_cluster['bootstrap.servers'],
+                                       kafka_api_key=kafka_cluster['sasl.username'],
+                                       kafka_api_secret=kafka_cluster['sasl.password'])
 
     # Run Key Data Skew Test
     data_skew_results = data_skew_test.run_test(topic_name=DEFAULT_KAFKA_TOPIC_NAME,
@@ -109,16 +99,54 @@ def main():
 
     logging.info("Key Data Skew Test Results: %s", data_skew_results)
 
+
+def cleanup(cc_credential: Dict, kafka_credentials: Dict) -> None:
     # Instantiate the IamClient class.
     iam_client = IamClient(iam_config=cc_credential)
 
     # Delete all the Kafka Cluster API keys created for each Kafka Cluster instance
-    for kafka_credential in kafka_credentials:
+    for kafka_credential in kafka_credentials.values():
         http_status_code, error_message = iam_client.delete_api_key(api_key=kafka_credential["sasl.username"])
         if http_status_code != HttpStatus.NO_CONTENT:
             logging.warning("FAILED TO DELETE KAFKA CLUSTER API KEY %s FOR KAFKA CLUSTER %s BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'], error_message)
         else:
             logging.info("Kafka Cluster API key %s for Kafka Cluster %s deleted successfully.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'])
+    
+def main():
+    """Main tool entry point."""
+
+    st.set_page_config(layout="wide")
+
+    # --- The title and subtitle of the app
+    st.title("Key Distribution Analyzer Dashboard")
+    st.write("This Analyzer Tool displays the result of the Key Distribution and Data Skew analysis.")
+
+    # --- Load the environment and Kafka credentials
+    cc_credential, environments, kafka_clusters, kafka_credentials = load_environment_with_kakfa_credentials()
+    
+    # --- Create and fill in the two dropdown boxes used to filter data in the app
+    selected_environment = st.selectbox(
+        index=0, 
+        label='Choose the Environment:',
+        options=[environment.get("display_name") for environment in environments.values()]
+    )
+    selected_environment_id = {environment.get("id") for environment in environments.values() if environment.get("display_name") == selected_environment}
+    selected_kafka_cluster = st.selectbox(
+        index=0,
+        label="Choose the Environment's Kafka Cluster:",
+        options=[kafka_cluster.get("display_name") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("environment_id") in selected_environment_id]
+    )
+    selected_kafka_cluster_id = {kafka_cluster.get("id") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("display_name") == selected_kafka_cluster}
+    kafka_cluster_id = list(selected_kafka_cluster_id)[0]
+    if st.button("Click Me"):
+        result = run_tests(kafka_credentials[kafka_cluster_id])
+        st.success(result)
+        st.balloons()
+
+    if st.button("Exit"):
+        cleanup(cc_credential, kafka_credentials)
+        st.success("Cleanup completed. Exiting the application.")
+        st.stop()
 
 
 # Run the main function if this script is executed directly    
