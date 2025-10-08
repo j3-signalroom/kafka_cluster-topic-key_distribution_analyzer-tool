@@ -1,14 +1,19 @@
+import json
 import os
+import time
 from dotenv import load_dotenv
 import logging
 from collections import defaultdict
 from confluent_kafka import Producer
+from confluent_kafka.serialization import StringSerializer
 
 from utilities import setup_logging
 from key_distribution_tester import KeyDistributionTester
 from confluent_credentials import (fetch_confluent_cloud_credential_via_env_file,
                                    fetch_kafka_credentials_via_env_file,
                                    fetch_kafka_credentials_via_confluent_cloud_api_key)
+from cc_clients_python_lib.iam_client import IamClient
+from cc_clients_python_lib.http_status import HttpStatus
 from constants import (DEFAULT_CHARACTER_REPEAT,
                        DEFAULT_USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS,
                        DEFAULT_KAFKA_TOPIC_NAME,
@@ -30,9 +35,20 @@ __status__     = "dev"
 # Setup module logging
 logger = setup_logging()
 
+# Create skewed data (80% of messages go to same key pattern)
+skewed_partition_mapping = defaultdict(list)
+
 
 def main():
     """Main tool entry point."""
+
+    def delivery_report(error_message, record):
+        try:
+            logging.info(f"Message delivered to partition {record.partition()}")
+            logging.info(f"Message key: {record.key().decode('utf-8')}")
+            skewed_partition_mapping[record.partition()].append(record.key().decode('utf-8'))
+        except Exception as e:
+            logging.error(f"Error Message, {error_message} in delivery callback: {e}")
 
     # Load environment variables from .env file
     load_dotenv()
@@ -96,38 +112,54 @@ def main():
         'acks': 'all',
         'retries': 5,
         'linger.ms': 10,
-        'batch.size': 16384,
-        'buffer.memory': 33554432,
+        'batch.size': 16384
     })
 
-    def delivery_report(error_message, record):
-        if error_message is not None:
-            logging.error('Message delivery failed: %s', error_message)
-        else:
-            logging.info('Message delivered to %s [%d]', record.topic(), record.partition())
-    
-    # Create skewed data (80% of messages go to same key pattern)
-    skewed_partition_mapping = defaultdict(list)
-    
+    # Initialize StringSerializer
+    string_serializer = StringSerializer('utf_8')
+
     for i in range(500):
         # 80% of messages use the same key
         if i < 400:
-            key = "hot-key-1"
+            key_str = "hot-key-1"
         else:
-            key = f"cold-key-{i}"
+            key_str = f"cold-key-{i}"
         
-        future = producer.send('python-key-test', key=key, value={"id": i})
-        try:
-            record_metadata = future.get(timeout=10)
-            skewed_partition_mapping[record_metadata.partition].append(key)
-        except Exception as e:
-            logging.error("Error: %s", e)
+        serialized_key = string_serializer(key_str)
+
+        # value
+        value_dict = {
+            "id": i,
+            "key": key_str,
+            "timestamp": time.time(),
+            "data": f"test_record_{id}"
+        }
+        serialized_value = json.dumps(value_dict).encode('utf-8')
+
+        # Produce record
+        producer.produce(
+            topic=DEFAULT_KAFKA_TOPIC_NAME,
+            key=serialized_key,
+            value=serialized_value,
+            on_delivery=delivery_report
+        )
     
-    producer.close()
+    producer.flush()
     
     # Analyze skewed distribution
     skewed_counts = {p: len(keys) for p, keys in skewed_partition_mapping.items()}
     tester.visualize_distribution(skewed_counts, "Skewed Distribution Example")
+
+    # Instantiate the IamClient class.
+    iam_client = IamClient(iam_config=cc_credential)
+
+    # Delete all the Kafka Cluster API keys created for each Kafka Cluster instance
+    for kafka_credential in kafka_credentials.values():
+        http_status_code, error_message = iam_client.delete_api_key(api_key=kafka_credential["basic.auth.user.info"].split(":")[0])
+        if http_status_code != HttpStatus.NO_CONTENT:
+            logging.warning("FAILED TO DELETE KAFKA CLUSTER API KEY %s FOR KAFKA CLUSTER %s BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", kafka_credential["basic.auth.user.info"].split(":")[0], kafka_credential['kafka_cluster_id'], error_message)
+        else:
+            logging.info("Kafka Cluster API key %s for Kafka Cluster %s deleted successfully.", kafka_credential["basic.auth.user.info"].split(":")[0], kafka_credential['kafka_cluster_id'])
 
 
 # Run the main function if this script is executed directly    
