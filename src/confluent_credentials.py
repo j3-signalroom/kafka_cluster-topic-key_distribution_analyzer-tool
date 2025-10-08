@@ -53,7 +53,7 @@ def fetch_confluent_cloud_credential_via_env_file(use_aws_secrets_manager: bool)
 def fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id: str, 
                                                         cc_credential: Dict, 
                                                         environment_filter: str | None = None, 
-                                                        kafka_cluster_filter: str | None = None) -> list[Dict]:
+                                                        kafka_cluster_filter: str | None = None) -> tuple[list[Dict], list[Dict], list[Dict]]:
     """Fetch Kafka credentials using Confluent Cloud API key.
     
     Args:
@@ -63,7 +63,7 @@ def fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id: str,
         kafka_cluster_filter (str | None): Optional filter for specific Kafka cluster IDs
 
     Return(s):
-        list[Dict]: List of Kafka credentials dictionaries.
+        tuple: A tuple containing the list of environments, list of Kafka clusters, and list of Kafka credentials.
     """
     kafka_credentials = []
 
@@ -132,52 +132,4 @@ def fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id: str,
         if not kafka_credentials:
             logging.error("NO KAFKA CREDENTIALS FOUND. PLEASE CHECK YOUR CONFIGURATION.")
 
-        return kafka_credentials
-
-
-def fetch_kafka_credentials_via_env_file(use_aws_secrets_manager: bool, kafka_cluster_filter: str | None = None) -> list[Dict]:
-    """Fetch Kafka credentials from .env file or AWS Secrets Manager.
-
-    Args:
-        use_aws_secrets_manager (bool): Whether to use AWS Secrets Manager for credentials retrieval
-        kafka_cluster_filter (str | None): Optional filter for specific Kafka cluster IDs
-
-    Return(s):
-        list[Dict]: List of Kafka credentials dictionaries.
-    """
-    try:
-        # Check if using AWS Secrets Manager for credentials retrieval
-        if use_aws_secrets_manager:
-            # Retrieve Kafka API Key/Secret from AWS Secrets Manager
-            kafka_api_secrets_paths = json.loads(os.getenv("KAFKA_API_SECRET_PATHS", "[]"))
-            kafka_credentials = []
-            for kafka_api_secrets_path in kafka_api_secrets_paths:
-                settings, error_message = get_secrets(kafka_api_secrets_path["region_name"], kafka_api_secrets_path["secret_name"])
-                if settings == {}:
-                    logging.error("FAILED TO RETRIEVE KAFKA API KEY/SECRET FROM AWS SECRETS MANAGER BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", error_message)
-                    return []
-                else:
-                    kafka_credentials.append({
-                        "bootstrap.servers": settings.get("bootstrap.servers"),
-                        "sasl.username": settings.get("sasl.username"),
-                        "sasl.password": settings.get("sasl.password"),
-                        "kafka_cluster_id": settings.get("kafka_cluster_id"),
-                        "environment_id": settings.get("environment_id")
-                    })
-            logging.info("Retrieving the Kafka Cluster credentials from the AWS Secrets Manager.")
-        else:
-            kafka_credentials = json.loads(os.getenv("KAFKA_CREDENTIALS", "[]"))
-            logging.info("Retrieving the Kafka Cluster credentials from the .env file.")
-            
-        if not kafka_credentials:
-            logging.error("NO KAFKA CREDENTIALS FOUND. PLEASE CHECK YOUR CONFIGURATION.")
-        else:
-            if kafka_cluster_filter:
-                kafka_cluster_ids = [kafka_cluster_id.strip() for kafka_cluster_id in kafka_cluster_filter.split(',')]
-                kafka_credentials = [kafka_credential for kafka_credential in kafka_credentials if kafka_credential.get("kafka_cluster_id") in kafka_cluster_ids]
-
-        return kafka_credentials
-            
-    except Exception as e:
-        logging.error("THE APPLICATION FAILED TO READ KAFKA CREDENTIALS BECAUSE OF THE FOLLOWING ERROR: %s", e)
-        return []
+        return environments, kafka_clusters, kafka_credentials

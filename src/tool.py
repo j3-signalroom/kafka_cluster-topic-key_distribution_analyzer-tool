@@ -1,18 +1,16 @@
 import os
 from dotenv import load_dotenv
 import logging
-from collections import defaultdict
+import streamlit as st
 
 from utilities import setup_logging
 from key_distribution_tester import KeyDistributionTester
 from key_data_skew_tester import KeyDataSkewTester
 from confluent_credentials import (fetch_confluent_cloud_credential_via_env_file,
-                                   fetch_kafka_credentials_via_env_file,
                                    fetch_kafka_credentials_via_confluent_cloud_api_key)
 from cc_clients_python_lib.iam_client import IamClient
 from cc_clients_python_lib.http_status import HttpStatus
-from constants import (DEFAULT_USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS,
-                       DEFAULT_KAFKA_TOPIC_NAME,
+from constants import (DEFAULT_KAFKA_TOPIC_NAME,
                        DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
                        DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                        DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
@@ -35,23 +33,11 @@ logger = setup_logging()
 def main():
     """Main tool entry point."""
 
-    # Create skewed data (80% of messages go to same key pattern)
-    skewed_partition_mapping = defaultdict(list)
-
-    def delivery_report(error_message, record):
-        try:
-            logging.info(f"Message delivered to partition {record.partition()}")
-            logging.info(f"Message key: {record.key().decode('utf-8')}")
-            skewed_partition_mapping[record.partition()].append(record.key().decode('utf-8'))
-        except Exception as e:
-            logging.error(f"Error Message, {error_message} in delivery callback: {e}")
-
     # Load environment variables from .env file
     load_dotenv()
  
     # Fetch environment variables non-credential configuration settings
     try:
-        use_confluent_cloud_api_key_to_fetch_resource_credentials = os.getenv("USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS", DEFAULT_USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS) == "True"
         environment_filter = os.getenv("ENVIRONMENT_FILTER")
         kafka_cluster_filter = os.getenv("KAFKA_CLUSTER_FILTER")
         principal_id = os.getenv("PRINCIPAL_ID")
@@ -66,17 +52,9 @@ def main():
         return
     
     # Fetch Kafka credentials
-    if use_confluent_cloud_api_key_to_fetch_resource_credentials:
-        # Read the Kafka Cluster credentials using Confluent Cloud API key
-        kafka_credentials = fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id, 
-                                                                                cc_credential, 
-                                                                                environment_filter, 
-                                                                                kafka_cluster_filter)
-    else:
-        # Read the Kafka Cluster credentials from the environment variable or AWS Secrets Manager
-        kafka_credentials = fetch_kafka_credentials_via_env_file(use_aws_secrets_manager)
-
-    if not kafka_credentials:
+    # Read the Kafka Cluster credentials using Confluent Cloud API key
+    environments, kafka_clusters, kafka_credentials = fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id, cc_credential, environment_filter, kafka_cluster_filter)
+    if not environments or not kafka_clusters or not kafka_credentials:
         return
 
     # Initialize Key Distribution Tester
