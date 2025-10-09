@@ -2,10 +2,12 @@ import time
 import json
 import hashlib
 from collections import defaultdict
+from typing import Dict
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.admin import AdminClient
-import matplotlib.pyplot as plt
+import streamlit as st
+import plotly.graph_objects as go
 import pandas as pd
 import logging
 
@@ -149,14 +151,14 @@ class KeyDistributionTester:
         logging.info("=== Key Distribution Analysis ===")
         
         # Records per partition
-        partition_counts = {partition: len(keys) for partition, keys in partition_mapping.items()}
-        total_records = sum(partition_counts.values())
+        partition_record_counts = {partition: len(keys) for partition, keys in partition_mapping.items()}
+        total_records = sum(partition_record_counts.values())
 
         logging.info("Total records: %d", total_records)
-        logging.info("Number of partitions: %d", len(partition_counts))
+        logging.info("Number of partitions: %d", len(partition_record_counts))
 
-        for partition in sorted(partition_counts.keys()):
-            count = partition_counts[partition]
+        for partition in sorted(partition_record_counts.keys()):
+            count = partition_record_counts[partition]
             percentage = (count / total_records) * 100
             logging.info("Partition %d: %d records (%.1f%%)", partition, count, percentage)
 
@@ -175,7 +177,7 @@ class KeyDistributionTester:
                 count = partitions[partition]
                 logging.info("  Partition %d: %d records", partition, count)
 
-        return partition_counts, key_patterns
+        return partition_record_counts, key_patterns
     
     def __test_hash_distribution(self, keys, partition_count):
         """Test how keys would be distributed using default hash function"""
@@ -232,34 +234,56 @@ class KeyDistributionTester:
             logging.info("Partition %d: %d records", partition, len(records))
 
         return partition_data
-    
-    def __visualize_distribution(self, partition_counts, title="Key Distribution Across Partitions"):
-        """Create visualization of partition distribution"""
-        partitions = list(partition_counts.keys())
-        counts = list(partition_counts.values())
+
+    def __visualize_distribution(self, partition_record_counts: Dict[int, int], title: str="Key Distribution Across Partitions") -> None:
+        """Create visualization of partition distribution
+
+        Args:
+            partition_record_counts (Dict[int, int]): Dictionary with partition numbers as keys and record counts as values.
+            title (str): Title of the plot.
+
+        Return(s):
+            None
+        """
+        partitions = list(partition_record_counts.keys())
+        counts = list(partition_record_counts.values())
         
-        plt.figure(figsize=(10, 6))
-        bars = plt.bar(partitions, counts, color='skyblue', edgecolor='navy')
-        
-        # Add value labels on bars
-        for bar in bars:
-            height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                    f'{int(height)}', ha='center', va='bottom')
-        
-        plt.xlabel('Partition')
-        plt.ylabel('Number of Records')
-        plt.title(title)
-        plt.grid(axis='y', alpha=0.3)
-        
-        # Calculate and display statistics
         avg_count = sum(counts) / len(counts)
-        plt.axhline(y=avg_count, color='red', linestyle='--', 
-                   label=f'Average: {avg_count:.1f}')
-        plt.legend()
         
-        plt.tight_layout()
-        plt.show()
+        # Create Plotly figure
+        fig = go.Figure()
+        
+        # Add bar chart
+        fig.add_trace(go.Bar(
+            x=partitions,
+            y=counts,
+            text=counts,
+            textposition='outside',
+            marker_color='skyblue',
+            marker_line_color='navy',
+            marker_line_width=1.5
+        ))
+        
+        # Add average line
+        fig.add_hline(
+            y=avg_count,
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f"Average: {avg_count:.1f}",
+            annotation_position="right"
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title=title,
+            xaxis_title="Partition",
+            yaxis_title="Number of Records",
+            showlegend=False,
+            height=500
+        )
+        
+        # Display in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
     
     def run_test(self,
                  topic_name=DEFAULT_KAFKA_TOPIC_NAME, 
@@ -281,7 +305,7 @@ class KeyDistributionTester:
         self.__produce_test_records(topic_name, record_count)
         
         # 3. Analyze distribution
-        partition_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
+        partition_record_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
 
         # 4. Test hash distribution
         all_keys = []
@@ -293,16 +317,16 @@ class KeyDistributionTester:
         # 5. Compare actual vs theoretical
         logging.info("=== Actual vs Theoretical Distribution ===")
         logging.info("Actual distribution (from producer):")
-        for partition in sorted(partition_counts.keys()):
-            actual = partition_counts[partition]
+        for partition in sorted(partition_record_counts.keys()):
+            actual = partition_record_counts[partition]
             theoretical = hash_distribution.get(partition, 0)
             logging.info("Partition %d: Actual=%d, Theoretical=%d", partition, actual, theoretical)
         
         # 6. Visualize results
-        self.__visualize_distribution(partition_counts, f"Actual Distribution - {topic_name}")
+        self.__visualize_distribution(partition_record_counts, f"Actual Distribution - {topic_name}")
         
         # 7. Calculate distribution quality metrics
-        counts = list(partition_counts.values())
+        counts = list(partition_record_counts.values())
         std_dev = pd.Series(counts).std()
         mean_count = pd.Series(counts).mean()
         cv = (std_dev / mean_count) * 100  # Coefficient of variation
@@ -314,7 +338,7 @@ class KeyDistributionTester:
         logging.info("Distribution quality: %s", 'Good' if cv < 20 else 'Poor')
 
         return {
-            'partition_counts': partition_counts,
+            'partition_record_counts': partition_record_counts,
             'key_patterns': key_patterns,
             'hash_distribution': hash_distribution,
             'quality_metrics': {
