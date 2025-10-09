@@ -10,7 +10,7 @@ This tool helps you test and analyze how keys are distributed in a Kafka topic w
    + [**1.1 Download the Tool**](#11-download-the-tool)
    + [**1.2 Configure the Tool**](#12-configure-the-tool)
    + [**1.3 Run the Tool**](#13-run-the-tool)
-      - [**1.3.1 Did you notice we prefix `uv run` to `python src/tool.py`?**](#131-did-you-notice-we-prefix-uv-run-to-python-srctoolpy)
+      - [**1.3.1 Did you notice we prefix `uv run` to `streamlit run src/tool.py`?**](#131-did-you-notice-we-prefix-uv-run-to-streamlit-run-srctoolpy)
       - [**1.3.2 Troubleshoot Connectivity Issues (if any)**](#132-troubleshoot-connectivity-issues-if-any)
    + [**1.4 The Results**](#14-the-results)
 - [**2.0 How the Tool Works**](#20-how-the-tool-works)
