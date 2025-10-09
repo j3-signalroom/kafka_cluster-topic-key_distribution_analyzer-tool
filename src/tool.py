@@ -90,6 +90,9 @@ def run_tests(kafka_cluster: Dict) -> None:
                                                       data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
                                                       record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
     
+    # Visualize results
+    distribution_test.visualize_distribution(distribution_results["partition_record_counts"], f"Actual Distribution - {DEFAULT_KAFKA_TOPIC_NAME}")
+    
     logging.info("Key Distribution Test Results: %s", distribution_results)
 
     # Initialize Key Data Skew Tester

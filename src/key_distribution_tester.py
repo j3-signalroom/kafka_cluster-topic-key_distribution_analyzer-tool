@@ -255,56 +255,6 @@ class KeyDistributionTester:
             logging.info("Partition %d: %d records", partition, len(records))
 
         return partition_data
-
-    def __visualize_distribution(self, partition_record_counts: Dict[int, int], title: str="Key Distribution Across Partitions") -> None:
-        """Create visualization of partition distribution
-
-        Args:
-            partition_record_counts (Dict[int, int]): Dictionary with partition numbers as keys and record counts as values.
-            title (str): Title of the plot.
-
-        Return(s):
-            None
-        """
-        partitions = list(partition_record_counts.keys())
-        counts = list(partition_record_counts.values())
-        
-        avg_count = sum(counts) / len(counts)
-        
-        # Create Plotly figure
-        fig = go.Figure()
-        
-        # Add bar chart
-        fig.add_trace(go.Bar(
-            x=partitions,
-            y=counts,
-            text=counts,
-            textposition='outside',
-            marker_color='skyblue',
-            marker_line_color='navy',
-            marker_line_width=1.5
-        ))
-        
-        # Add average line
-        fig.add_hline(
-            y=avg_count,
-            line_dash="dash",
-            line_color="red",
-            annotation_text=f"Average: {avg_count:.1f}",
-            annotation_position="right"
-        )
-        
-        # Update layout
-        fig.update_layout(
-            title=title,
-            xaxis_title="Partition",
-            yaxis_title="Number of Records",
-            showlegend=False,
-            height=500
-        )
-        
-        # Display in Streamlit
-        st.plotly_chart(fig, use_container_width=True)
     
     def run_test(self,
                  topic_name=DEFAULT_KAFKA_TOPIC_NAME, 
@@ -353,10 +303,7 @@ class KeyDistributionTester:
             theoretical = hash_distribution.get(partition, 0)
             logging.info("Partition %d: Actual=%d, Theoretical=%d", partition, actual, theoretical)
         
-        # 6. Visualize results
-        self.__visualize_distribution(partition_record_counts, f"Actual Distribution - {topic_name}")
-        
-        # 7. Calculate distribution quality metrics
+        # 6. Calculate distribution quality metrics
         counts = list(partition_record_counts.values())
         std_dev = pd.Series(counts).std()
         mean_count = pd.Series(counts).mean()
@@ -378,3 +325,53 @@ class KeyDistributionTester:
                 'cv': cv
             }
         }
+    
+    def visualize_distribution(self, partition_record_counts: Dict[int, int], title: str) -> None:
+        """Create visualization of partition distribution
+
+        Args:
+            partition_record_counts (Dict[int, int]): Dictionary with partition numbers as keys and record counts as values.
+            title (str): Title of the plot.
+
+        Return(s):
+            None
+        """
+        partitions = list(partition_record_counts.keys())
+        counts = list(partition_record_counts.values())
+        
+        avg_count = sum(counts) / len(counts)
+        
+        # Create Plotly figure
+        fig = go.Figure()
+        
+        # Add bar chart
+        fig.add_trace(go.Bar(
+            x=partitions,
+            y=counts,
+            text=counts,
+            textposition='outside',
+            marker_color='skyblue',
+            marker_line_color='navy',
+            marker_line_width=1.5
+        ))
+        
+        # Add average line
+        fig.add_hline(
+            y=avg_count,
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f"Average: {avg_count:.1f}",
+            annotation_position="right"
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title=title,
+            xaxis_title="Partition",
+            yaxis_title="Number of Records",
+            showlegend=False,
+            height=500
+        )
+        
+        # Display in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
