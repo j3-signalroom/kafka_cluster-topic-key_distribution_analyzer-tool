@@ -72,61 +72,6 @@ class KeyDataSkewTester:
         except Exception as e:
             logging.error(f"Error Message, {error_message} in delivery callback: {e}")
 
-    def __visualize_distribution(self, partition_record_counts: Dict[int, int], title: str) -> None:
-        """Visualize the distribution of records across partitions using Plotly in Streamlit.
-
-        Args:
-            partition_record_counts (Dict[int, int]): Dictionary mapping partition numbers to record counts.
-            title (str): Title for the plot.
-
-        Returns:
-            None
-        """
-        # Prepare data for plotting
-        partitions = list(partition_record_counts.keys())
-        counts = list(partition_record_counts.values())
-
-        # Calculate statistics
-        avg_count = sum(counts) / len(counts)
-        
-        # Create Plotly figure
-        fig = go.Figure()
-        
-        # Add bar chart
-        fig.add_trace(go.Bar(
-            x=partitions,
-            y=counts,
-            text=[f'{int(count)}' for count in counts],
-            textposition='outside',
-            marker_color='skyblue',
-            marker_line_color='navy',
-            marker_line_width=1.5,
-            name='Records'
-        ))
-        
-        # Add average line
-        fig.add_hline(
-            y=avg_count,
-            line_dash="dash",
-            line_color="red",
-            annotation_text=f'Average: {avg_count:.1f}',
-            annotation_position="top right"
-        )
-        
-        # Update layout
-        fig.update_layout(
-            title=title,
-            xaxis_title='Partition',
-            yaxis_title='Number of Records',
-            showlegend=True,
-            height=600,
-            yaxis=dict(gridcolor='lightgray', gridwidth=0.5, griddash='dot'),
-            plot_bgcolor='white'
-        )
-        
-        # Display in Streamlit
-        st.plotly_chart(fig, use_container_width=True)
-
     def run_test(self,
                  topic_name=DEFAULT_KAFKA_TOPIC_NAME, 
                  partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT, 
@@ -202,5 +147,59 @@ class KeyDataSkewTester:
         producer.flush()
         
         # Analyze skewed distribution
-        skewed_counts = {p: len(keys) for p, keys in self.skewed_partition_mapping.items()}
-        self.__visualize_distribution(skewed_counts, "Skewed Distribution Example")
+        return {p: len(keys) for p, keys in self.skewed_partition_mapping.items()}
+
+    def visualize_data_skew(self, partition_record_counts: Dict[int, int], title: str) -> None:
+        """Visualize the key/data skew distribution using Plotly and Streamlit.
+
+        Args:
+            partition_record_counts (Dict[int, int]): Dictionary mapping partition numbers to record counts.
+            title (str): Title for the plot.
+
+        Returns:
+            None
+        """
+        # Prepare data for plotting
+        partitions = list(partition_record_counts.keys())
+        counts = list(partition_record_counts.values())
+
+        # Calculate statistics
+        avg_count = sum(counts) / len(counts)
+        
+        # Create Plotly figure
+        fig = go.Figure()
+        
+        # Add bar chart
+        fig.add_trace(go.Bar(
+            x=partitions,
+            y=counts,
+            text=[f'{int(count)}' for count in counts],
+            textposition='outside',
+            marker_color='skyblue',
+            marker_line_color='navy',
+            marker_line_width=1.5,
+            name='Records'
+        ))
+        
+        # Add average line
+        fig.add_hline(
+            y=avg_count,
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f'Average: {avg_count:.1f}',
+            annotation_position="top right"
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title=title,
+            xaxis_title='Partition',
+            yaxis_title='Number of Records',
+            showlegend=True,
+            height=600,
+            yaxis=dict(gridcolor='lightgray', gridwidth=0.5, griddash='dot'),
+            plot_bgcolor='white'
+        )
+        
+        # Display in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
