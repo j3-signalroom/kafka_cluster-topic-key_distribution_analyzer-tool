@@ -2,11 +2,12 @@ from collections import defaultdict
 import json
 import logging
 import time
-from typing import List
+from typing import Dict
 from confluent_kafka.admin import AdminClient
 from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
-import matplotlib.pyplot as plt
+import streamlit as st
+import plotly.graph_objects as go
 
 from constants import (DEFAULT_CHARACTER_REPEAT, 
                        DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
@@ -60,17 +61,90 @@ class KeyDataSkewTester:
         self.admin_client = AdminClient(config)
 
     def __delivery_report(self, error_message, record):
+        """ Delivery report callback called (from Producer) on successful or failed delivery of message.
+        
+        Args:
+            error_message: Error message if delivery failed, else None.
+            record: The produced record.
+        """
         try:
             self.skewed_partition_mapping[record.partition()].append(record.key().decode('utf-8'))
         except Exception as e:
             logging.error(f"Error Message, {error_message} in delivery callback: {e}")
+
+    def __visualize_distribution(self, partition_record_counts: Dict[int, int], title: str) -> None:
+        """Visualize the distribution of records across partitions using Plotly in Streamlit.
+
+        Args:
+            partition_record_counts (Dict[int, int]): Dictionary mapping partition numbers to record counts.
+            title (str): Title for the plot.
+
+        Returns:
+            None
+        """
+        # Prepare data for plotting
+        partitions = list(partition_record_counts.keys())
+        counts = list(partition_record_counts.values())
+
+        # Calculate statistics
+        avg_count = sum(counts) / len(counts)
+        
+        # Create Plotly figure
+        fig = go.Figure()
+        
+        # Add bar chart
+        fig.add_trace(go.Bar(
+            x=partitions,
+            y=counts,
+            text=[f'{int(count)}' for count in counts],
+            textposition='outside',
+            marker_color='skyblue',
+            marker_line_color='navy',
+            marker_line_width=1.5,
+            name='Records'
+        ))
+        
+        # Add average line
+        fig.add_hline(
+            y=avg_count,
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f'Average: {avg_count:.1f}',
+            annotation_position="top right"
+        )
+        
+        # Update layout
+        fig.update_layout(
+            title=title,
+            xaxis_title='Partition',
+            yaxis_title='Number of Records',
+            showlegend=True,
+            height=600,
+            yaxis=dict(gridcolor='lightgray', gridwidth=0.5, griddash='dot'),
+            plot_bgcolor='white'
+        )
+        
+        # Display in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
 
     def run_test(self,
                  topic_name=DEFAULT_KAFKA_TOPIC_NAME, 
                  partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT, 
                  replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR, 
                  data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS, 
-                 record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
+                 record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT) -> Dict:
+        """Run the Key Data Skew test.
+
+        Arg(s):
+            topic_name (str): Name of the Kafka topic to create/use.
+            partition_count (int): Number of partitions for the topic.
+            replication_factor (int): Replication factor for the topic.
+            data_retention_in_days (int): Data retention period in days for the topic.
+            record_count (int): Number of records to produce.
+
+        Return(s):
+            Dict: Results of the Key Data Skew test.
+        """
         logging.info("="*DEFAULT_CHARACTER_REPEAT)
         logging.info("Testing with skewed key distribution...")
 
@@ -130,32 +204,3 @@ class KeyDataSkewTester:
         # Analyze skewed distribution
         skewed_counts = {p: len(keys) for p, keys in self.skewed_partition_mapping.items()}
         self.__visualize_distribution(skewed_counts, "Skewed Distribution Example")
-
-    def __visualize_distribution(self, partition_counts: List, title: str):
-        """Create visualization of partition distribution"""
-
-        partitions = list(partition_counts.keys())
-        counts = list(partition_counts.values())
-        
-        plt.figure(figsize=(10, 6))
-        bars = plt.bar(partitions, counts, color='skyblue', edgecolor='navy')
-        
-        # Add value labels on bars
-        for bar in bars:
-            height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2., height + 0.5,
-                    f'{int(height)}', ha='center', va='bottom')
-        
-        plt.xlabel('Partition')
-        plt.ylabel('Number of Records')
-        plt.title(title)
-        plt.grid(axis='y', alpha=0.3)
-        
-        # Calculate and display statistics
-        avg_count = sum(counts) / len(counts)
-        plt.axhline(y=avg_count, color='red', linestyle='--', 
-                   label=f'Average: {avg_count:.1f}')
-        plt.legend()
-        
-        plt.tight_layout()
-        plt.show()

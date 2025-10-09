@@ -2,7 +2,7 @@ import time
 import json
 import hashlib
 from collections import defaultdict
-from typing import Dict
+from typing import Dict, Tuple
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.admin import AdminClient
@@ -98,9 +98,16 @@ class KeyDistributionTester:
         except Exception as e:
             logging.error(f"Error Message, {error_message} in delivery callback: {e}")
     
-    def __produce_test_records(self, topic_name, record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
-        """Produce test records with different key patterns"""
+    def __produce_test_records(self, topic_name, record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT) -> None:
+        """Produce test records with specific key patterns to the topic.
 
+        Arg(s):
+            topic_name (str): Kafka topic name.
+            record_count (int): Number of records to produce.
+
+        Return(s):
+            None
+        """
         # Initialize StringSerializer
         string_serializer = StringSerializer('utf_8')
         producer = Producer(self.kafka_producer_config)
@@ -145,9 +152,16 @@ class KeyDistributionTester:
             except Exception as e:
                 logging.error("Error producing record %d: %s", id, e)
         producer.flush()
-    
-    def __analyze_distribution(self, partition_mapping):
-        """Analyze key distribution across partitions"""
+
+    def __analyze_distribution(self, partition_mapping: Dict[int, list]) -> Tuple[Dict[int, int], Dict[str, Dict[int, int]]]:
+        """Analyze the distribution of keys across partitions and log the results.
+
+        Arg(s):
+            partition_mapping (Dict[int, list]): Mapping of partition numbers to lists of keys.
+
+        Return(s):
+            Tuple[Dict[int, int], Dict[str, Dict[int, int]]]: Partition record counts and key pattern distribution.
+        """
         logging.info("=== Key Distribution Analysis ===")
         
         # Records per partition
@@ -179,9 +193,16 @@ class KeyDistributionTester:
 
         return partition_record_counts, key_patterns
     
-    def __test_hash_distribution(self, keys, partition_count):
-        """Test how keys would be distributed using default hash function"""
+    def __test_hash_distribution(self, keys, partition_count) -> Dict[int, int]:
+        """Test the theoretical hash distribution of keys across partitions.
 
+        Arg(s):
+            keys (list): List of keys to analyze.
+            partition_count (int): Number of partitions.
+
+        Return(s):
+            Dict[int, int]: Theoretical hash distribution across partitions.
+        """
         logging.info("=== Hash Function Distribution Test ===")
         
         hash_distribution = defaultdict(int)
@@ -290,8 +311,18 @@ class KeyDistributionTester:
                  partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT, 
                  replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR, 
                  data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS, 
-                 record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT):
-        """Run a comprehensive key distribution test"""
+                 record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT) -> Dict:
+        """Run the Key Distribution Test.
+        Arg(s):
+            topic_name (str): Kafka topic name.
+            partition_count (int): Number of partitions for the topic.
+            replication_factor (int): Replication factor for the topic.
+            data_retention_in_days (int): Data retention period in days.
+            record_count (int): Number of records to produce for the test.
+
+        Return(s):
+            Dict: Test results including distribution metrics and visualizations.
+        """
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
         
         # 1. Create topic
