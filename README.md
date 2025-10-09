@@ -1,7 +1,14 @@
-# Kafka Cluster Topic Key Distribution Analyzer Tool
-Kafka key distribution explains how Kafka assigns records to partitions within a topic based on their record key. It affects load balancing, order, and parallelism across partitions—key factors for Kafka’s performance and scalability. Without proper key distribution, your topic can develop hot partitions. A hot partition in Kafka is one that receives or processes an unusually high amount of data or traffic compared to others in the same topic. This imbalance causes uneven load across brokers and consumers, which can reduce overall performance and throughput in the Kafka cluster.
+# Kafka Cluster Topic Key Distribution Hot Partition Analyzer Tool
+Efficient **Kafka key distribution** is fundamental to building scalable, high-performance event-driven systems. Kafka uses each record’s key to determine which partition it belongs to—governing **data ordering**, **load balancing**, and **parallelism** across the cluster. When key distribution is uneven, some partitions become hot, processing far more traffic than others. These **hot partitions** lead to broker overload, consumer lag, and throttled throughput, undermining the scalability of your Kafka workloads.
 
-This tool helps you test and analyze how keys are distributed in a Kafka topic within your cluster. It generates a specified number of records with different key patterns to a given topic, then consumes those records to examine how they are spread across the topic’s partitions. The tool offers insights into the effectiveness of your key distribution strategy and can help identify potential issues like hot partitions.
+This tool helps you **test**, **visualize**, and **validate** how record keys are distributed across topic partitions in your Kafka cluster. It generates records using configurable key patterns, publishes them to a target topic, and then consumes the data to analyze partition utilization and message distribution metrics.
+
+By surfacing patterns of **data skew**, **low-key cardinality**, or **biased hashing**, the analyzer reveals whether your partitioning strategy is truly balanced. The results empower you to:
+* Detect and diagnose **hot partitions** before they degrade performance.
+* Experiment with **key-salting** or **hashing strategies** to improve balance.
+* Optimize **consumer parallelism** and **broker load** for predictable throughput at scale.
+
+Use this tool as a **proactive performance lens** on your Kafka topics—ensuring your cluster’s data distribution is as efficient, scalable, and reliable as the workloads it powers.
 
 **Table of Contents**
 
@@ -24,7 +31,7 @@ This tool helps you test and analyze how keys are distributed in a Kafka topic w
 ### 1.1 Download the Tool
 Clone the repo:
     ```shell
-    git clone https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution_analyzer-tool.git
+    git clone https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution-hot_partition_analyzer-tool.git
     ```
 
 Since this project was built using [**`uv`**](https://docs.astral.sh/uv/), please [install](https://docs.astral.sh/uv/getting-started/installation/) it, and then run the following command to install all the project dependencies:
@@ -40,10 +47,10 @@ Now, you need to set up the tool by creating a `.env` file in the root directory
 
 **Navigate to the Project Root Directory**
 
-Open your Terminal and navigate to the root folder of the `kafka_cluster-topic-key_distribution_analyzer-tool/` repository that you have cloned. You can do this by executing:
+Open your Terminal and navigate to the root folder of the `kafka_cluster-topic-key_distribution-hot_partition_analyzer-tool/` repository that you have cloned. You can do this by executing:
 
 ```shell
-cd path/to/kafka_cluster-topic-key_distribution_analyzer-tool/
+cd path/to/kafka_cluster-topic-key_distribution-hot_partition_analyzer-tool/
 ```
 
 > Replace `path/to/` with the actual path where your repository is located.
