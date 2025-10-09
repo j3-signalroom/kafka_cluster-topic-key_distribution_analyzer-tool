@@ -91,7 +91,7 @@ def run_tests(kafka_cluster: Dict) -> None:
                                                       record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
     
     # Visualize results
-    distribution_test.visualize_distribution(distribution_results["partition_record_counts"], f"Actual Distribution - {DEFAULT_KAFKA_TOPIC_NAME}")
+    
     
     logging.info("Key Distribution Test Results: %s", distribution_results)
 
@@ -108,9 +108,21 @@ def run_tests(kafka_cluster: Dict) -> None:
                                                 data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
                                                 record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
 
-    data_skew_test.visualize_data_skew(data_skew_results, "Skewed Distribution Example")
-
     logging.info("Key Data Skew Test Results: %s", data_skew_results)
+
+    # --- Container with two sections (columns) to display the bar chart and pie chart
+    with st.container(border=True):    
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("Key Distribution Test Results")
+            distribution_test.visualize_distribution(distribution_results["partition_record_counts"], f"Actual Distribution - {DEFAULT_KAFKA_TOPIC_NAME}")
+            st.json(distribution_results)
+
+        with col2:
+            st.subheader("Key Data Skew Test Results")
+            data_skew_test.visualize_data_skew(data_skew_results, "Skewed Distribution Example")
+            st.json(data_skew_results)
 
 
 def delete_all_kafka_credentals_created(cc_credential: Dict, kafka_credentials: Dict) -> None:
