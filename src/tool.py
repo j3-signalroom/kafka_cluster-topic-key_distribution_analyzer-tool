@@ -89,7 +89,7 @@ def run_tests(kafka_cluster: Dict) -> None:
                                                       replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                                                       data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
                                                       record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
-
+    
     logging.info("Key Distribution Test Results: %s", distribution_results)
 
     # Initialize Key Data Skew Tester
@@ -154,45 +154,6 @@ def main():
         options=[kafka_cluster.get("display_name") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("environment_id") in selected_environment_id]
     )
     selected_kafka_cluster_id = list({kafka_cluster.get("id") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("display_name") == selected_kafka_cluster})[0]
-
-
-    # --- Container with two sections (columns) to display the bar chart and pie chart
-    with st.container(border=True):    
-        col1, col2 = st.columns(2)
-
-        with col1:
-            # --- Bar chart flight count by departure month for the selected airline and year
-            st.header("Airline Flights")
-            st.title(f"{selected_airline} Monthly Flights in {selected_departure_year}")
-            st.bar_chart(data=df_airline_monthly_flights_table[(df_airline_monthly_flights_table['departure_year'] == selected_departure_year) & (df_airline_monthly_flights_table['airline'] == selected_airline)] ,
-                         x="departure_month_abbr",
-                         y="flight_count",
-                         x_label="Departure Month",
-                         y_label="Number of Flights")
-            st.write(f"This bar chart displays the number of {selected_airline} monthly flights in {selected_departure_year}.  The x-axis represents the month and the y-axis represents the number of flights.")
-
-        with col2:
-            # --- Pie chart top airports by departures for the selected airline and year
-            # --- Create a slider to select the number of airports to rank
-            st.header("Airport Ranking")
-            st.title(f"Top {selected_departure_year} {selected_airline} Airports")
-            df_filter_table = df_ranked_airports_table[(df_ranked_airports_table['airline'] == selected_airline) & (df_ranked_airports_table['departure_year'] == selected_departure_year)]
-            rank_value = st.slider(label="Ranking:",
-                                   min_value=3,
-                                   max_value=df_filter_table['row_num'].max(), 
-                                   step=1,
-                                   value=3)
-            fig = px.pie(df_filter_table[(df_filter_table['row_num'] <= rank_value)], 
-                         values='flight_count', 
-                         names='departure_airport_code', 
-                         title=f"Top {rank_value} based on departures",)
-            st.plotly_chart(fig, theme=None)
-            st.write(f"This pie chart displays the top {rank_value} airports with the most departures for {selected_airline}.  The chart shows the percentage of flights departing from each of the top {rank_value} airports.")
-
-
-
-
-    
     
     if st.button("Click Me"):
         result = run_tests(kafka_credentials[selected_kafka_cluster_id])
