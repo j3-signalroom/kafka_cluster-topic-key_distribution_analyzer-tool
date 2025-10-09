@@ -108,6 +108,8 @@ def run_tests(kafka_cluster: Dict) -> None:
                                                 data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
                                                 record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
 
+    data_skew_test.visualize_data_skew(data_skew_results, "Skewed Distribution Example")
+
     logging.info("Key Data Skew Test Results: %s", data_skew_results)
 
 
