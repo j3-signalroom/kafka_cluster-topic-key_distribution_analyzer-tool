@@ -2,7 +2,7 @@ import tomllib
 from pathlib import Path
 import logging
 import logging.config
-from confluent_kafka.admin import ConfigResource, NewTopic
+from confluent_kafka.admin import NewTopic
 
 from constants import (DEFAULT_TOOL_LOG_FILE, 
                        DEFAULT_TOOL_LOG_FORMAT)
@@ -82,10 +82,7 @@ def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: i
     if topic_name in topic_list.topics:
         logging.info(f"Kafka topic '{topic_name}' already exists but will verify retention policy")
 
-        # Update existing topic retention policy
-        resource = ConfigResource(ConfigResource.Type.TOPIC, topic_name)
-        resource.set_config('retention.ms', retention_policy)
-        admin_client.alter_configs([resource])
+        admin_client.delete_topics([topic_name])
     else:        
         # Otherwise, create new topic
         logging.info(f"Creating Kafka topic '{topic_name}' with {partition_count} partitions")

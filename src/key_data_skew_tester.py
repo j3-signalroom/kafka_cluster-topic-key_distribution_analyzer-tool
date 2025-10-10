@@ -141,8 +141,6 @@ class KeyDataSkewTester:
                 value=serialized_value,
                 on_delivery=self.__delivery_report
             )
-
-            logging.info(f"Skewed Distribution Produced record with key: {key_str}")
         
         producer.flush()
         

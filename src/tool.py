@@ -32,8 +32,8 @@ logger = setup_logging()
 
 
 @st.cache_data(ttl=900, show_spinner="Fetching the Confluent Environment's [you have access to] Kafka Clusters' Kafka Credentials...")
-def load_environment_with_kakfa_credentials() -> tuple[Dict, Dict, Dict, Dict]:
-    """Load the environment and Kafka credentials.
+def fetch_environment_with_kakfa_credentials() -> tuple[Dict, Dict, Dict, Dict]:
+    """Fetch the environment and Kafka credentials.
 
     Return(s):
         Tuple containing:
@@ -122,12 +122,8 @@ def run_tests(kafka_cluster: Dict) -> None:
 
     # --- Container to display the data skew test results
     with st.container(border=True):
-        col1 = st.columns(1)
-
-        with col1:
-            st.subheader("Key Data Skew Test Results")
-            data_skew_test.visualize_data_skew(data_skew_results, "Skewed Distribution Example")
-            st.json(data_skew_results)
+        st.subheader("Key Data Skew Test Results")
+        data_skew_test.visualize_data_skew(data_skew_results, "Skewed Distribution Example")
 
 
 def delete_all_kafka_credentals_created(cc_credential: Dict, kafka_credentials: Dict) -> None:
@@ -161,7 +157,7 @@ def main():
     st.write("This Analyzer Tool displays the result of the Key Distribution and Data Skew analysis.")
 
     # --- Fetch the environment and Kafka credentials
-    cc_credential, environments, kafka_clusters, kafka_credentials = load_environment_with_kakfa_credentials()
+    cc_credential, environments, kafka_clusters, kafka_credentials = fetch_environment_with_kakfa_credentials()
     
     # --- Create and fill in the two dropdown boxes used to determine the working Kafka cluster
     selected_environment = st.selectbox(

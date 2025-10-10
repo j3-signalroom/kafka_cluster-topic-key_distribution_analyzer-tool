@@ -3,8 +3,8 @@ import json
 import hashlib
 from collections import defaultdict
 from typing import Dict, Tuple
-from confluent_kafka import Producer, DeserializingConsumer
-from confluent_kafka.serialization import StringSerializer, StringDeserializer
+from confluent_kafka import Producer, Consumer
+from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.admin import AdminClient
 import streamlit as st
 import plotly.graph_objects as go
@@ -59,7 +59,7 @@ class KeyDistributionTester:
         # Setup the Kafka Consumer config
         self.kafka_consumer_config = {
             **config,
-            'auto.offset.reset': 'latest',
+            'auto.offset.reset': 'earliest',
             'group.id': f'key-distribution-tester-{int(time.time())}',
             'enable.auto.commit': False,
             'session.timeout.ms': 45000,
@@ -69,9 +69,7 @@ class KeyDistributionTester:
             'enable.partition.eof': True,
             'fetch.message.max.bytes': 10485760, # 10MB max message size
             'queued.min.messages': 1000,     
-            'enable.metrics.push': False,        # Disable metrics pushing for consumers to registered JMX MBeans.  However, is really being set to False to not expose unneccessary noise to the logging output
-            'key.deserializer': StringDeserializer('utf_8'),
-            'value.deserializer': StringDeserializer('utf_8')
+            'enable.metrics.push': False         # Disable metrics pushing for consumers to registered JMX MBeans.  However, is really being set to False to not expose unneccessary noise to the logging output
         }
 
         # Setup the Kafka Producer config
@@ -234,7 +232,7 @@ class KeyDistributionTester:
         Returns:
             Dict[int, List[Dict]]: Consumed records grouped by partition.
         """
-        consumer = DeserializingConsumer(self.kafka_consumer_config)
+        consumer = Consumer(self.kafka_consumer_config)
         consumer.subscribe([topic_name])
         
         partition_data = defaultdict(list)
@@ -242,19 +240,27 @@ class KeyDistributionTester:
         logging.info("Consuming records from topic '%s'...", topic_name)
 
         try:
-            consumer.poll(1)
-            for record in consumer:
-                partition_data[record.partition].append({
-                    'key': record.key().decode('utf-8') if record.key() else None,
-                    'value':  json.loads(record.value().decode('utf-8')) if record.value() else None,
-                    'offset': record.offset,
-                    'timestamp': record.timestamp
-                })
+            while True:
+                record = consumer.poll(1)
+
+                if not record:
+                    break
+
+                if record.key() is None and record.value() is None:
+                    logging.info("Reached end of partition %d at offset %d", record.partition(), record.offset())
+                    continue
+                else:
+                    partition_data[record.partition()].append({
+                        'key': record.key().decode('utf-8') if record.key() else None,
+                        'value': json.loads(record.value().decode('utf-8')) if record.value() else None,
+                        'offset': record.offset(),
+                        'timestamp': record.timestamp()
+                    })
         except Exception as e:
             logging.error("Consumer timeout or error: %s", e)
-        
+
         consumer.close()
-        
+
         # Analyze consumed data
         logging.info("Consumed data from %d partitions:", len(partition_data))
         for partition in sorted(partition_data.keys()):
