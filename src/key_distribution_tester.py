@@ -379,13 +379,13 @@ class KeyDistributionTester:
             'hash_distribution': hash_distribution,
             'producer_quality_metrics': {
                 'mean': producer_mean_count,
-                'std_dev': producer_std_dev,
-                'cv': producer_cv
+                'standard_deviation': producer_std_dev,
+                'coefficient_of_variation': producer_cv
             },
             'consumer_quality_metrics': {
                 'mean': consumer_mean_count,
-                'std_dev': consumer_std_dev,
-                'cv': consumer_cv
+                'standard_deviation': consumer_std_dev,
+                'coefficient_of_variation': consumer_cv
             }
         }
     
