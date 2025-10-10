@@ -75,7 +75,7 @@ def fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id: str,
  
     if http_status_code != HttpStatus.OK:
         logger.error("FAILED TO RETRIEVE KAFKA CREDENTIALS FROM CONFLUENT CLOUD BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", error_message)
-        return []
+        return None, None, None
     else:
         # Filter environments if an environment filter is provided
         if environment_filter:
@@ -88,7 +88,7 @@ def fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id: str,
 
             if http_status_code != HttpStatus.OK:
                 logger.error("FAILED TO RETRIEVE KAFKA CLUSTER LIST FOR ENVIRONMENT %s FROM CONFLUENT CLOUD BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", environment.get('id'), error_message)
-                return []
+                return None, None, None
             else:
                 # Filter Kafka clusters if a Kafka cluster filter is provided
                 if kafka_cluster_filter:
@@ -119,7 +119,7 @@ def fetch_kafka_credentials_via_confluent_cloud_api_key(principal_id: str,
                                     logger.info("KAFKA API KEY %s FOR KAFKA CLUSTER %s DELETED SUCCESSFULLY.", kafka_credential['sasl.username'], kafka_credential['kafka_cluster_id'])
 
                                 kafka_credentials.pop(kafka_credential_key)
-                        return []
+                        return None, None, None
                     else:
                         kafka_credentials[kafka_cluster_key] = {
                             "environment_id": environment.get("id"),
