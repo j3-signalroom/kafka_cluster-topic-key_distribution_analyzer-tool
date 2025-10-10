@@ -112,7 +112,7 @@ def run_tests(kafka_cluster: Dict) -> None:
 
         with col1:
             st.subheader("Producer Key Distribution Test Results")
-            distribution_test.visualize_distribution(distribution_results["partition_record_counts"], f"Actual Distribution - {DEFAULT_KAFKA_TOPIC_NAME}")
+            distribution_test.visualize_distribution(distribution_results["producer_partition_record_counts"], f"Actual Distribution - {DEFAULT_KAFKA_TOPIC_NAME}")
             st.json(distribution_results["producer_quality_metrics"])
 
         with col2:
@@ -157,7 +157,7 @@ def main():
     st.set_page_config(layout="wide")
 
     # --- The title and subtitle of the app
-    st.title("Key Distribution Analyzer Dashboard")
+    st.title("Key Distribution and Hot Partition Analyzer Dashboard")
     st.write("This Analyzer Tool displays the result of the Key Distribution and Data Skew analysis.")
 
     # --- Fetch the environment and Kafka credentials
