@@ -9,10 +9,7 @@ from confluent_kafka.serialization import StringSerializer
 import streamlit as st
 import plotly.graph_objects as go
 
-from constants import (DEFAULT_CHARACTER_REPEAT, 
-                       DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
-                       DEFAULT_KAFKA_TOPIC_RECORD_COUNT,
-                       DEFAULT_KAFKA_TOPIC_NAME,
+from constants import (DEFAULT_CHARACTER_REPEAT,
                        DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                        DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
 from utilities import setup_logging, create_topic_if_not_exists
@@ -33,7 +30,15 @@ logger = setup_logging()
 class KeyDataSkewTester:
     """Class to test key/data skew in a Kafka cluster."""
 
-    def __init__(self, kafka_cluster_id: str, bootstrap_server_uri: str, kafka_api_key: str, kafka_api_secret: str):
+    def __init__(self, 
+                 kafka_cluster_id: str, 
+                 bootstrap_server_uri: str, 
+                 kafka_api_key: str, 
+                 kafka_api_secret: str, 
+                 data_skew_topic_name: str, 
+                 data_skew_partition_count: int, 
+                 replication_factor: int = DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR, 
+                 data_retention_in_days: int = DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS):
         """Connect to the Kafka Cluster with the AdminClient.
 
         Args:
@@ -41,6 +46,10 @@ class KeyDataSkewTester:
             bootstrap_server_uri (string): Kafka Cluster URI
             kafka_api_key (string): Your Confluent Cloud Kafka API key
             kafka_api_secret (string): Your Confluent Cloud Kafka API secret
+            data_skew_topic_name (string): Kafka topic name to use for the data skew test
+            data_skew_partition_count (int): Number of partitions for the topic
+            replication_factor (int): Replication factor for the topic
+            data_retention_in_days (int): Data retention period in days for the topic
         """
         # Create skewed data (80% of messages go to same key pattern)
         self.skewed_partition_mapping = defaultdict(list)
@@ -60,6 +69,13 @@ class KeyDataSkewTester:
         }
         self.admin_client = AdminClient(config)
 
+        create_topic_if_not_exists(self.admin_client,
+                                   data_skew_topic_name,
+                                   data_skew_partition_count, 
+                                   replication_factor, 
+                                   data_retention_in_days)
+
+
     def __delivery_report(self, error_message, record):
         """ Delivery report callback called (from Producer) on successful or failed delivery of message.
         
@@ -72,33 +88,17 @@ class KeyDataSkewTester:
         except Exception as e:
             logging.error(f"Error Message, {error_message} in delivery callback: {e}")
 
-    def run_test(self,
-                 topic_name=DEFAULT_KAFKA_TOPIC_NAME, 
-                 partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT, 
-                 replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR, 
-                 data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS, 
-                 record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT) -> Dict:
+    def run_test(self, data_skew_topic_name: str) -> Dict:
         """Run the Key Data Skew test.
 
         Arg(s):
-            topic_name (str): Name of the Kafka topic to create/use.
-            partition_count (int): Number of partitions for the topic.
-            replication_factor (int): Replication factor for the topic.
-            data_retention_in_days (int): Data retention period in days for the topic.
-            record_count (int): Number of records to produce.
+            data_skew_topic_name (str): Name of the Kafka topic to create/use.
 
         Return(s):
             Dict: Results of the Key Data Skew test.
         """
         logging.info("="*DEFAULT_CHARACTER_REPEAT)
         logging.info("Testing with skewed key distribution...")
-
-        # 1. Create topic
-        create_topic_if_not_exists(self.admin_client,
-                                   topic_name,
-                                   partition_count, 
-                                   replication_factor, 
-                                   data_retention_in_days)
 
         # Test skewed distribution
         producer = Producer({
@@ -136,7 +136,7 @@ class KeyDataSkewTester:
 
             # Produce record
             producer.produce(
-                topic=topic_name,
+                topic=data_skew_topic_name,
                 key=serialized_key,
                 value=serialized_value,
                 on_delivery=self.__delivery_report

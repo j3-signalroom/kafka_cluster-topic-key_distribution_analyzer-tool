@@ -34,8 +34,8 @@ class KeyDistributionTester:
                  bootstrap_server_uri: str, 
                  kafka_api_key: str, 
                  kafka_api_secret: str,
-                 topic_name: str, 
-                 partition_count: int, 
+                 distribution_topic_name: str, 
+                 distribution_partition_count: int, 
                  replication_factor: int, 
                  data_retention_in_days: int,):
         """Connect to the Kafka Cluster with the AdminClient.
@@ -45,8 +45,8 @@ class KeyDistributionTester:
             bootstrap_server_uri (string): Kafka Cluster URI
             kafka_api_key (string): Your Confluent Cloud Kafka API key
             kafka_api_secret (string): Your Confluent Cloud Kafka API secret
-            topic_name (str): Kafka topic name.
-            partition_count (int): Number of partitions for the topic.
+            distribution_topic_name (str): Kafka topic name.
+            distribution_partition_count (int): Number of partitions for the topic.
             replication_factor (int): Replication factor for the topic.
             data_retention_in_days (int): Data retention period in days.
         """
@@ -92,8 +92,8 @@ class KeyDistributionTester:
 
         # Create topic
         create_topic_if_not_exists(self.admin_client,
-                                   topic_name, 
-                                   partition_count, 
+                                   distribution_topic_name, 
+                                   distribution_partition_count, 
                                    replication_factor, 
                                    data_retention_in_days)
 
@@ -285,19 +285,15 @@ class KeyDistributionTester:
         return partition_data
     
     def run_test(self,
-                 topic_name: str, 
-                 partition_count: int, 
-                 replication_factor: int, 
-                 data_retention_in_days: int, 
-                 record_count: int, 
+                 distribution_topic_name: str, 
+                 distribution_partition_count: int,
+                 distribution_record_count: int, 
                  key_pattern: List[str]) -> Dict:
         """Run the Key Distribution Test.
         Arg(s):
-            topic_name (str): Kafka topic name.
-            partition_count (int): Number of partitions for the topic.
-            replication_factor (int): Replication factor for the topic.
-            data_retention_in_days (int): Data retention period in days.
-            record_count (int): Number of records to produce for the test.
+            distribution_topic_name (str): Kafka topic name.
+            distribution_partition_count (int): Number of partitions for the topic.
+            distribution_record_count (int): Number of records to produce for the test.
 
         Return(s):
             Dict: Test results including distribution metrics and visualizations.
@@ -305,7 +301,7 @@ class KeyDistributionTester:
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
         
         # Produce records
-        self.__produce_test_records(topic_name, record_count, key_pattern)
+        self.__produce_test_records(distribution_topic_name, distribution_record_count, key_pattern)
         
         # Analyze distribution
         producer_partition_record_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
@@ -315,14 +311,14 @@ class KeyDistributionTester:
         for keys in self.partition_mapping.values():
             all_keys.extend(keys)
         
-        hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
+        hash_distribution = self.__test_hash_distribution(all_keys, distribution_partition_count)
 
         consumer_partition_record_counts = None
         logging.info("=== Consumer Verification ===")
         logging.info("Consuming messages to verify actual distribution...")
-        
-        partition_data = self.__consume_and_analyze(topic_name)
-        
+
+        partition_data = self.__consume_and_analyze(distribution_topic_name)
+
         # Calculate consumer-verified counts
         consumer_partition_record_counts = {
             partition: len(messages) 
