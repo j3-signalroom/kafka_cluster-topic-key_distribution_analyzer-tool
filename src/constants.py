@@ -1,4 +1,4 @@
-from typing import Final
+from typing import Final, List
 
 
 __copyright__  = "Copyright (c) 2025 Jeffrey Jonathan Jennings"
@@ -25,3 +25,5 @@ DEFAULT_KAFKA_TOPIC_PARTITION_COUNT: Final[int] = 6
 DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR: Final[int] = 3
 DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS: Final[int] = 0  # 0 means infinite retention
 DEFAULT_KAFKA_TOPIC_RECORD_COUNT: Final[int] = 1000
+
+DEFAULT_KAFKA_TOPIC_KEY_PATTERN: Final[List] = ["user-", "order-", "event-"]

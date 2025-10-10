@@ -1,5 +1,5 @@
 import os
-from typing import Dict
+from typing import Dict, List
 from dotenv import load_dotenv
 import logging
 import streamlit as st
@@ -16,8 +16,8 @@ from constants import (DEFAULT_KAFKA_TOPIC_NAME,
                        DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
                        DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                        DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
-                       DEFAULT_KAFKA_TOPIC_RECORD_COUNT,
-                       DEFAULT_USE_AWS_SECRETS_MANAGER)
+                       DEFAULT_USE_AWS_SECRETS_MANAGER,
+                       DEFAULT_KAFKA_TOPIC_KEY_PATTERN)
 
 
 __copyright__  = "Copyright (c) 2025 Jeffrey Jonathan Jennings"
@@ -69,11 +69,19 @@ def fetch_environment_with_kakfa_credentials() -> tuple[Dict, Dict, Dict, Dict]:
         return cc_credential, environments, kafka_clusters, kafka_credentials
 
 
-def run_tests(kafka_cluster: Dict) -> None:
+def run_tests(kafka_cluster: Dict, 
+              topic_name: str, 
+              key_pattern: List[str], 
+              partition_count: int, 
+              record_count: int) -> None:
     """Run the Key Distribution and Data Skew tests.
 
     Arg(s):
         kafka_cluster (Dict): Kafka cluster information dictionary.
+        topic_name (str): Kafka topic name.
+        key_pattern (List[str]): List of key patterns to use.
+        partition_count (int): Number of partitions for the topic.
+        record_count (int): Number of records to produce and consume.
 
     Return(s):
         None
@@ -82,14 +90,19 @@ def run_tests(kafka_cluster: Dict) -> None:
     distribution_test = KeyDistributionTester(kafka_cluster_id=kafka_cluster['kafka_cluster_id'],
                                               bootstrap_server_uri=kafka_cluster['bootstrap.servers'],
                                               kafka_api_key=kafka_cluster['sasl.username'],
-                                              kafka_api_secret=kafka_cluster['sasl.password'])
+                                              kafka_api_secret=kafka_cluster['sasl.password'],
+                                              topic_name=topic_name,
+                                              partition_count=partition_count,
+                                              replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
+                                              data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
 
     # Run Key Distribution Test
-    distribution_results = distribution_test.run_test(topic_name=DEFAULT_KAFKA_TOPIC_NAME,
-                                                      partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
+    distribution_results = distribution_test.run_test(topic_name=topic_name,
+                                                      partition_count=partition_count,
                                                       replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                                                       data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
-                                                      record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)    
+                                                      record_count=record_count,
+                                                      key_pattern=key_pattern)    
     logging.info("Key Distribution Test Results: %s", distribution_results)
 
     # Initialize Key Data Skew Tester
@@ -99,11 +112,11 @@ def run_tests(kafka_cluster: Dict) -> None:
                                        kafka_api_secret=kafka_cluster['sasl.password'])
 
     # Run Key Data Skew Test
-    data_skew_results = data_skew_test.run_test(topic_name=DEFAULT_KAFKA_TOPIC_NAME,
-                                                partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
+    data_skew_results = data_skew_test.run_test(topic_name=topic_name,
+                                                partition_count=partition_count,
                                                 replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                                                 data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
-                                                record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
+                                                record_count=record_count)
 
     logging.info("Key Data Skew Test Results: %s", data_skew_results)
 
@@ -160,22 +173,55 @@ def main():
     # --- Fetch the environment and Kafka credentials
     cc_credential, environments, kafka_clusters, kafka_credentials = fetch_environment_with_kakfa_credentials()
     
-    # --- Create and fill in the two dropdown boxes used to determine the working Kafka cluster
-    selected_environment = st.selectbox(
-        index=0, 
-        label='Choose the Environment:',
-        options=[environment.get("display_name") for environment in environments.values()]
-    )
-    selected_environment_id = {environment.get("id") for environment in environments.values() if environment.get("display_name") == selected_environment}
-    selected_kafka_cluster = st.selectbox(
-        index=0,
-        label="Choose the Environment's Kafka Cluster:",
-        options=[kafka_cluster.get("display_name") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("environment_id") in selected_environment_id]
-    )
-    selected_kafka_cluster_id = list({kafka_cluster.get("id") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("display_name") == selected_kafka_cluster})[0]
-    
+    with st.container(border=False):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            with st.container(border=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    # --- Create and fill in the two dropdown boxes used to determine the working Kafka cluster
+                    selected_environment = st.selectbox(
+                        index=0, 
+                        label='Choose the Environment:',
+                        options=[environment.get("display_name") for environment in environments.values()]
+                    )
+                    selected_environment_id = {environment.get("id") for environment in environments.values() if environment.get("display_name") == selected_environment}
+                with col2:
+                    selected_kafka_cluster = st.selectbox(
+                        index=0,
+                        label=f"Choose the {selected_environment}'s Kafka Cluster:",
+                        options=[kafka_cluster.get("display_name") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("environment_id") in selected_environment_id]
+                    )
+                    selected_kafka_cluster_id = list({kafka_cluster.get("id") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("display_name") == selected_kafka_cluster})[0]
+
+    with st.container(border=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            topic_name = st.text_input("Enter your topic name for both producer and consumer:", placeholder=DEFAULT_KAFKA_TOPIC_NAME)
+            with st.container(border=True):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    key_pattern = st.text_input("Enter your key pattern to use by the producer:", placeholder=",".join(DEFAULT_KAFKA_TOPIC_KEY_PATTERN))
+                with col2:
+                    parition_count = st.number_input("Partition Counter:",
+                                     min_value=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
+                                     max_value=128,
+                                     value=6,
+                                     step=1,
+                                     help="Use arrows or type to change value")
+                    
+                with col3:
+                    selected_record_count = st.selectbox(index=2,
+                                                        label='Choose number of records to produce:',
+                                                        options=["10", "100", "1,000", "10,000", "100,000"])
+
     if st.button("Run Tests"):
-        result = run_tests(kafka_credentials[selected_kafka_cluster_id])
+        result = run_tests(kafka_credentials[selected_kafka_cluster_id],
+                           topic_name=topic_name if topic_name else DEFAULT_KAFKA_TOPIC_NAME,
+                           key_pattern=key_pattern.split(",") if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
+                           partition_count=parition_count,
+                           record_count=int(selected_record_count.replace(",", "")))
         st.success(result)
         st.balloons()
 
