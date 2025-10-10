@@ -2,7 +2,7 @@ import time
 import json
 import hashlib
 from collections import defaultdict
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.admin import AdminClient
@@ -12,11 +12,6 @@ import pandas as pd
 import logging
 
 from utilities import setup_logging, create_topic_if_not_exists
-from constants import (DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
-                       DEFAULT_KAFKA_TOPIC_RECORD_COUNT,
-                       DEFAULT_KAFKA_TOPIC_NAME,
-                       DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
-                       DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
 
 
 __copyright__  = "Copyright (c) 2025 Jeffrey Jonathan Jennings"
@@ -34,7 +29,15 @@ logger = setup_logging()
 class KeyDistributionTester:
     """Class to test and analyze key distribution in Kafka topics."""
 
-    def __init__(self, kafka_cluster_id: str, bootstrap_server_uri: str, kafka_api_key: str, kafka_api_secret: str):
+    def __init__(self, 
+                 kafka_cluster_id: str, 
+                 bootstrap_server_uri: str, 
+                 kafka_api_key: str, 
+                 kafka_api_secret: str,
+                 distribution_topic_name: str, 
+                 distribution_partition_count: int, 
+                 replication_factor: int, 
+                 data_retention_in_days: int,):
         """Connect to the Kafka Cluster with the AdminClient.
 
         Args:
@@ -42,6 +45,10 @@ class KeyDistributionTester:
             bootstrap_server_uri (string): Kafka Cluster URI
             kafka_api_key (string): Your Confluent Cloud Kafka API key
             kafka_api_secret (string): Your Confluent Cloud Kafka API secret
+            distribution_topic_name (str): Kafka topic name.
+            distribution_partition_count (int): Number of partitions for the topic.
+            replication_factor (int): Replication factor for the topic.
+            data_retention_in_days (int): Data retention period in days.
         """
         self.kafka_cluster_id = kafka_cluster_id
         self.bootstrap_server_uri = bootstrap_server_uri
@@ -83,6 +90,13 @@ class KeyDistributionTester:
 
         self.partition_mapping = defaultdict(list)
 
+        # Create topic
+        create_topic_if_not_exists(self.admin_client,
+                                   distribution_topic_name, 
+                                   distribution_partition_count, 
+                                   replication_factor, 
+                                   data_retention_in_days)
+
     def __delivery_callback(self, error_message: str, record) -> None:
         """Callback invoked when a message is delivered or fails.
 
@@ -98,12 +112,13 @@ class KeyDistributionTester:
         except Exception as e:
             logging.error(f"Error Message, {error_message} in delivery callback: {e}")
     
-    def __produce_test_records(self, topic_name, record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT) -> None:
+    def __produce_test_records(self, topic_name, record_count: int, key_pattern: List[str]) -> None:
         """Produce test records with specific key patterns to the topic.
 
         Arg(s):
             topic_name (str): Kafka topic name.
             record_count (int): Number of records to produce.
+            key_pattern (List[str]): List of key patterns to use.
 
         Return(s):
             None
@@ -111,7 +126,7 @@ class KeyDistributionTester:
         # Initialize StringSerializer
         string_serializer = StringSerializer('utf_8')
         producer = Producer(self.kafka_producer_config)
-        key_patterns = ["user-", "order-", "event-"]
+        key_patterns = key_pattern
 
         logging.info("Producing %d records...", record_count)
 
@@ -270,50 +285,40 @@ class KeyDistributionTester:
         return partition_data
     
     def run_test(self,
-                 topic_name=DEFAULT_KAFKA_TOPIC_NAME, 
-                 partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT, 
-                 replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR, 
-                 data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS, 
-                 record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT) -> Dict:
+                 distribution_topic_name: str, 
+                 distribution_partition_count: int,
+                 distribution_record_count: int, 
+                 key_pattern: List[str]) -> Dict:
         """Run the Key Distribution Test.
         Arg(s):
-            topic_name (str): Kafka topic name.
-            partition_count (int): Number of partitions for the topic.
-            replication_factor (int): Replication factor for the topic.
-            data_retention_in_days (int): Data retention period in days.
-            record_count (int): Number of records to produce for the test.
+            distribution_topic_name (str): Kafka topic name.
+            distribution_partition_count (int): Number of partitions for the topic.
+            distribution_record_count (int): Number of records to produce for the test.
 
         Return(s):
             Dict: Test results including distribution metrics and visualizations.
         """
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
         
-        # 1. Create topic
-        create_topic_if_not_exists(self.admin_client,
-                                   topic_name, 
-                                   partition_count, 
-                                   replication_factor, 
-                                   data_retention_in_days)
+        # Produce records
+        self.__produce_test_records(distribution_topic_name, distribution_record_count, key_pattern)
         
-        # 2. Produce records
-        self.__produce_test_records(topic_name, record_count)
-        
-        # 3. Analyze distribution
+        # Analyze distribution
         producer_partition_record_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
 
-        # 4. Test hash distribution
+        # Test hash distribution
         all_keys = []
         for keys in self.partition_mapping.values():
             all_keys.extend(keys)
         
-        hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
+        hash_distribution = self.__test_hash_distribution(all_keys, distribution_partition_count)
 
         consumer_partition_record_counts = None
         logging.info("=== Consumer Verification ===")
         logging.info("Consuming messages to verify actual distribution...")
-        
-        partition_data = self.__consume_and_analyze(topic_name)
-        
+
+        partition_data = self.__consume_and_analyze(distribution_topic_name)
+
         # Calculate consumer-verified counts
         consumer_partition_record_counts = {
             partition: len(messages) 
@@ -340,7 +345,7 @@ class KeyDistributionTester:
             match = "✅" if prod_count == cons_count else "⚠️"
             logging.info("Partition %d: Producer=%d, Consumer=%d %s", partition, prod_count, cons_count, match)
         
-        # 5. Compare actual vs theoretical
+        # Compare actual vs theoretical
         logging.info("=== Actual vs Theoretical Distribution ===")
         logging.info("Actual distribution (from producer):")
         for partition in sorted(producer_partition_record_counts.keys()):
@@ -348,7 +353,7 @@ class KeyDistributionTester:
             theoretical = hash_distribution.get(partition, 0)
             logging.info("Partition %d: Actual=%d, Theoretical=%d", partition, actual, theoretical)
         
-        # 6. Calculate distribution quality metrics
+        # Calculate distribution quality metrics
         producer_counts = list(producer_partition_record_counts.values())
         producer_std_dev = pd.Series(producer_counts).std()
         producer_mean_count = pd.Series(producer_counts).mean()
@@ -360,7 +365,7 @@ class KeyDistributionTester:
         logging.info("Coefficient of variation: %.1f%%", producer_cv)
         logging.info("Distribution quality: %s", 'Good' if producer_cv < 20 else 'Poor')
 
-        # 6. Calculate distribution quality metrics
+        # Calculate distribution quality metrics
         consumer_counts = list(consumer_partition_record_counts.values())
         consumer_std_dev = pd.Series(consumer_counts).std()
         consumer_mean_count = pd.Series(consumer_counts).mean()
@@ -379,13 +384,13 @@ class KeyDistributionTester:
             'hash_distribution': hash_distribution,
             'producer_quality_metrics': {
                 'mean': producer_mean_count,
-                'std_dev': producer_std_dev,
-                'cv': producer_cv
+                'standard_deviation': producer_std_dev,
+                'coefficient_of_variation': producer_cv
             },
             'consumer_quality_metrics': {
                 'mean': consumer_mean_count,
-                'std_dev': consumer_std_dev,
-                'cv': consumer_cv
+                'standard_deviation': consumer_std_dev,
+                'coefficient_of_variation': consumer_cv
             }
         }
     
