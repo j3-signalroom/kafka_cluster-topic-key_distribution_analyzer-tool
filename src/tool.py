@@ -3,6 +3,7 @@ from typing import Dict
 from dotenv import load_dotenv
 import logging
 import streamlit as st
+import sys
 
 from utilities import setup_logging
 from key_distribution_tester import KeyDistributionTester
@@ -173,7 +174,7 @@ def main():
     )
     selected_kafka_cluster_id = list({kafka_cluster.get("id") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("display_name") == selected_kafka_cluster})[0]
     
-    if st.button("Click Me"):
+    if st.button("Run Tests"):
         result = run_tests(kafka_credentials[selected_kafka_cluster_id])
         st.success(result)
         st.balloons()
@@ -182,6 +183,7 @@ def main():
         delete_all_kafka_credentals_created(cc_credential, kafka_credentials)
         st.success("Cleanup completed. Exiting the application.")
         st.stop()
+        sys.exit(0)
 
 
 # Run the main function if this script is executed directly    
