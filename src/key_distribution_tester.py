@@ -3,8 +3,8 @@ import json
 import hashlib
 from collections import defaultdict
 from typing import Dict, Tuple
-from confluent_kafka import Producer, Consumer
-from confluent_kafka.serialization import StringSerializer
+from confluent_kafka import Producer, DeserializingConsumer
+from confluent_kafka.serialization import StringSerializer, StringDeserializer
 from confluent_kafka.admin import AdminClient
 import streamlit as st
 import plotly.graph_objects as go
@@ -12,8 +12,7 @@ import pandas as pd
 import logging
 
 from utilities import setup_logging, create_topic_if_not_exists
-from constants import (DEFAULT_TOPIC_CONSUMER_TIMEOUT_MS,
-                       DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
+from constants import (DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
                        DEFAULT_KAFKA_TOPIC_RECORD_COUNT,
                        DEFAULT_KAFKA_TOPIC_NAME,
                        DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
@@ -61,6 +60,7 @@ class KeyDistributionTester:
         self.kafka_consumer_config = {
             **config,
             'auto.offset.reset': 'latest',
+            'group.id': f'key-distribution-tester-{int(time.time())}',
             'enable.auto.commit': False,
             'session.timeout.ms': 45000,
             'request.timeout.ms': 30000,
@@ -69,7 +69,9 @@ class KeyDistributionTester:
             'enable.partition.eof': True,
             'fetch.message.max.bytes': 10485760, # 10MB max message size
             'queued.min.messages': 1000,     
-            'enable.metrics.push': False         # Disable metrics pushing for consumers to registered JMX MBeans.  However, is really being set to False to not expose unneccessary noise to the logging output
+            'enable.metrics.push': False,        # Disable metrics pushing for consumers to registered JMX MBeans.  However, is really being set to False to not expose unneccessary noise to the logging output
+            'key.deserializer': StringDeserializer('utf_8'),
+            'value.deserializer': StringDeserializer('utf_8')
         }
 
         # Setup the Kafka Producer config
@@ -165,14 +167,14 @@ class KeyDistributionTester:
         logging.info("=== Key Distribution Analysis ===")
         
         # Records per partition
-        partition_record_counts = {partition: len(keys) for partition, keys in partition_mapping.items()}
-        total_records = sum(partition_record_counts.values())
+        producer_partition_record_counts = {partition: len(keys) for partition, keys in partition_mapping.items()}
+        total_records = sum(producer_partition_record_counts.values())
 
         logging.info("Total records: %d", total_records)
-        logging.info("Number of partitions: %d", len(partition_record_counts))
+        logging.info("Number of partitions: %d", len(producer_partition_record_counts))
 
-        for partition in sorted(partition_record_counts.keys()):
-            count = partition_record_counts[partition]
+        for partition in sorted(producer_partition_record_counts.keys()):
+            count = producer_partition_record_counts[partition]
             percentage = (count / total_records) * 100
             logging.info("Partition %d: %d records (%.1f%%)", partition, count, percentage)
 
@@ -191,7 +193,7 @@ class KeyDistributionTester:
                 count = partitions[partition]
                 logging.info("  Partition %d: %d records", partition, count)
 
-        return partition_record_counts, key_patterns
+        return producer_partition_record_counts, key_patterns
     
     def __test_hash_distribution(self, keys, partition_count) -> Dict[int, int]:
         """Test the theoretical hash distribution of keys across partitions.
@@ -222,24 +224,29 @@ class KeyDistributionTester:
 
         return hash_distribution
     
-    def consume_and_analyze(self, topic_name, timeout_ms=DEFAULT_TOPIC_CONSUMER_TIMEOUT_MS):
-        """Consume records and analyze actual distribution"""
+    def __consume_and_analyze(self, topic_name: str):
+        """Consume records from the topic and analyze the actual distribution.
 
-        self.kafka_consumer_config["topic_name"] = topic_name
-        self.kafka_consumer_config["consumer_timeout_ms"] = timeout_ms
-        self.kafka_consumer_config["key_deserializer"] = lambda m: m.decode('utf-8') if m else None
-        self.kafka_consumer_config["value_deserializer"] = lambda m: json.loads(m.decode('utf-8'))
-        consumer = Consumer(self.kafka_consumer_config)
+        Args:
+            topic_name (str): Kafka topic name.
+            timeout_ms (int, optional): Consumer timeout in milliseconds. Defaults to DEFAULT_TOPIC_CONSUMER_TIMEOUT_MS.
+
+        Returns:
+            Dict[int, List[Dict]]: Consumed records grouped by partition.
+        """
+        consumer = DeserializingConsumer(self.kafka_consumer_config)
+        consumer.subscribe([topic_name])
         
         partition_data = defaultdict(list)
 
         logging.info("Consuming records from topic '%s'...", topic_name)
 
         try:
+            consumer.poll(1)
             for record in consumer:
                 partition_data[record.partition].append({
-                    'key': record.key,
-                    'value': record.value,
+                    'key': record.key().decode('utf-8') if record.key() else None,
+                    'value':  json.loads(record.value().decode('utf-8')) if record.value() else None,
                     'offset': record.offset,
                     'timestamp': record.timestamp
                 })
@@ -286,7 +293,7 @@ class KeyDistributionTester:
         self.__produce_test_records(topic_name, record_count)
         
         # 3. Analyze distribution
-        partition_record_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
+        producer_partition_record_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
 
         # 4. Test hash distribution
         all_keys = []
@@ -294,35 +301,85 @@ class KeyDistributionTester:
             all_keys.extend(keys)
         
         hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
+
+        consumer_partition_record_counts = None
+        logging.info("=== Consumer Verification ===")
+        logging.info("Consuming messages to verify actual distribution...")
+        
+        partition_data = self.__consume_and_analyze(topic_name)
+        
+        # Calculate consumer-verified counts
+        consumer_partition_record_counts = {
+            partition: len(messages) 
+            for partition, messages in partition_data.items()
+        }
+        
+        # Compare producer vs consumer counts
+        logging.info("=== Producer vs Consumer Comparison ===")
+        total_producer = sum(producer_partition_record_counts.values())
+        total_consumer = sum(consumer_partition_record_counts.values())
+
+        logging.info("Producer reported: %d messages", total_producer)
+        logging.info("Consumer verified: %d messages", total_consumer)
+        
+        if total_producer == total_consumer:
+            logging.info("✅ All messages accounted for")
+        else:
+            logging.warning("⚠️ Mismatch: %d messages missing", total_producer - total_consumer)
+
+        logging.info("Per-partition comparison:")
+        for partition in sorted(producer_partition_record_counts.keys()):
+            prod_count = producer_partition_record_counts.get(partition, 0)
+            cons_count = consumer_partition_record_counts.get(partition, 0)
+            match = "✅" if prod_count == cons_count else "⚠️"
+            logging.info("Partition %d: Producer=%d, Consumer=%d %s", partition, prod_count, cons_count, match)
         
         # 5. Compare actual vs theoretical
         logging.info("=== Actual vs Theoretical Distribution ===")
         logging.info("Actual distribution (from producer):")
-        for partition in sorted(partition_record_counts.keys()):
-            actual = partition_record_counts[partition]
+        for partition in sorted(producer_partition_record_counts.keys()):
+            actual = producer_partition_record_counts[partition]
             theoretical = hash_distribution.get(partition, 0)
             logging.info("Partition %d: Actual=%d, Theoretical=%d", partition, actual, theoretical)
         
         # 6. Calculate distribution quality metrics
-        counts = list(partition_record_counts.values())
-        std_dev = pd.Series(counts).std()
-        mean_count = pd.Series(counts).mean()
-        cv = (std_dev / mean_count) * 100  # Coefficient of variation
+        producer_counts = list(producer_partition_record_counts.values())
+        producer_std_dev = pd.Series(producer_counts).std()
+        producer_mean_count = pd.Series(producer_counts).mean()
+        producer_cv = (producer_std_dev / producer_mean_count) * 100  # Coefficient of variation
 
-        logging.info("=== Distribution Quality Metrics ===")
-        logging.info("Mean records per partition: %.1f", mean_count)
-        logging.info("Standard deviation: %.1f", std_dev)
-        logging.info("Coefficient of variation: %.1f%%", cv)
-        logging.info("Distribution quality: %s", 'Good' if cv < 20 else 'Poor')
+        logging.info("=== Producer Distribution Quality Metrics ===")
+        logging.info("Mean records per partition: %.1f", producer_mean_count)
+        logging.info("Standard deviation: %.1f", producer_std_dev)
+        logging.info("Coefficient of variation: %.1f%%", producer_cv)
+        logging.info("Distribution quality: %s", 'Good' if producer_cv < 20 else 'Poor')
+
+        # 6. Calculate distribution quality metrics
+        consumer_counts = list(consumer_partition_record_counts.values())
+        consumer_std_dev = pd.Series(consumer_counts).std()
+        consumer_mean_count = pd.Series(consumer_counts).mean()
+        consumer_cv = (consumer_std_dev / consumer_mean_count) * 100  # Coefficient of variation
+
+        logging.info("=== Consumer Distribution Quality Metrics ===")
+        logging.info("Mean records per partition: %.1f", consumer_mean_count)
+        logging.info("Standard deviation: %.1f", consumer_std_dev)
+        logging.info("Coefficient of variation: %.1f%%", consumer_cv)
+        logging.info("Distribution quality: %s", 'Good' if consumer_cv < 20 else 'Poor')
 
         return {
-            'partition_record_counts': partition_record_counts,
+            'producer_partition_record_counts': producer_partition_record_counts,
+            'consumer_partition_record_counts': consumer_partition_record_counts,
             'key_patterns': key_patterns,
             'hash_distribution': hash_distribution,
-            'quality_metrics': {
-                'mean': mean_count,
-                'std_dev': std_dev,
-                'cv': cv
+            'producer_quality_metrics': {
+                'mean': producer_mean_count,
+                'std_dev': producer_std_dev,
+                'cv': producer_cv
+            },
+            'consumer_quality_metrics': {
+                'mean': consumer_mean_count,
+                'std_dev': consumer_std_dev,
+                'cv': consumer_cv
             }
         }
     
@@ -338,40 +395,43 @@ class KeyDistributionTester:
         """
         partitions = list(partition_record_counts.keys())
         counts = list(partition_record_counts.values())
-        
-        avg_count = sum(counts) / len(counts)
-        
-        # Create Plotly figure
-        fig = go.Figure()
-        
-        # Add bar chart
-        fig.add_trace(go.Bar(
-            x=partitions,
-            y=counts,
-            text=counts,
-            textposition='outside',
-            marker_color='skyblue',
-            marker_line_color='navy',
-            marker_line_width=1.5
-        ))
-        
-        # Add average line
-        fig.add_hline(
-            y=avg_count,
-            line_dash="dash",
-            line_color="red",
-            annotation_text=f"Average: {avg_count:.1f}",
-            annotation_position="right"
-        )
-        
-        # Update layout
-        fig.update_layout(
-            title=title,
-            xaxis_title="Partition",
-            yaxis_title="Number of Records",
-            showlegend=False,
-            height=500
-        )
-        
-        # Display in Streamlit
-        st.plotly_chart(fig, use_container_width=True)
+
+        if not partitions or not counts:
+            logging.warning("No data available to visualize.")
+        else:
+            avg_count = sum(counts) / len(counts)
+            
+            # Create Plotly figure
+            fig = go.Figure()
+            
+            # Add bar chart
+            fig.add_trace(go.Bar(
+                x=partitions,
+                y=counts,
+                text=counts,
+                textposition='outside',
+                marker_color='skyblue',
+                marker_line_color='navy',
+                marker_line_width=1.5
+            ))
+            
+            # Add average line
+            fig.add_hline(
+                y=avg_count,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"Average: {avg_count:.1f}",
+                annotation_position="right"
+            )
+            
+            # Update layout
+            fig.update_layout(
+                title=title,
+                xaxis_title="Partition",
+                yaxis_title="Number of Records",
+                showlegend=False,
+                height=500
+            )
+            
+            # Display in Streamlit
+            st.plotly_chart(fig, use_container_width=True)
