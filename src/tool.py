@@ -88,11 +88,7 @@ def run_tests(kafka_cluster: Dict) -> None:
                                                       partition_count=DEFAULT_KAFKA_TOPIC_PARTITION_COUNT,
                                                       replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                                                       data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
-                                                      record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)
-    
-    # Visualize results
-    
-    
+                                                      record_count=DEFAULT_KAFKA_TOPIC_RECORD_COUNT)    
     logging.info("Key Distribution Test Results: %s", distribution_results)
 
     # Initialize Key Data Skew Tester
@@ -111,15 +107,24 @@ def run_tests(kafka_cluster: Dict) -> None:
     logging.info("Key Data Skew Test Results: %s", data_skew_results)
 
     # --- Container with two sections (columns) to display the bar chart and pie chart
-    with st.container(border=True):    
+    with st.container(border=True):
         col1, col2 = st.columns(2)
 
         with col1:
-            st.subheader("Key Distribution Test Results")
+            st.subheader("Producer Key Distribution Test Results")
             distribution_test.visualize_distribution(distribution_results["partition_record_counts"], f"Actual Distribution - {DEFAULT_KAFKA_TOPIC_NAME}")
-            st.json(distribution_results)
+            st.json(distribution_results["producer_quality_metrics"])
 
         with col2:
+            st.subheader("Consumer Key Distribution Test Results")
+            distribution_test.visualize_distribution(distribution_results["consumer_partition_record_counts"], f"Actual Distribution - {DEFAULT_KAFKA_TOPIC_NAME}")
+            st.json(distribution_results["consumer_quality_metrics"])
+
+    # --- Container to display the data skew test results
+    with st.container(border=True):
+        col1 = st.columns(1)
+
+        with col1:
             st.subheader("Key Data Skew Test Results")
             data_skew_test.visualize_data_skew(data_skew_results, "Skewed Distribution Example")
             st.json(data_skew_results)
