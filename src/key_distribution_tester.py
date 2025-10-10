@@ -242,6 +242,7 @@ class KeyDistributionTester:
         logging.info("Consuming records from topic '%s'...", topic_name)
 
         try:
+            consumer.poll(1)
             for record in consumer:
                 partition_data[record.partition].append({
                     'key': record.key().decode('utf-8') if record.key() else None,
@@ -394,40 +395,43 @@ class KeyDistributionTester:
         """
         partitions = list(partition_record_counts.keys())
         counts = list(partition_record_counts.values())
-        
-        avg_count = sum(counts) / len(counts)
-        
-        # Create Plotly figure
-        fig = go.Figure()
-        
-        # Add bar chart
-        fig.add_trace(go.Bar(
-            x=partitions,
-            y=counts,
-            text=counts,
-            textposition='outside',
-            marker_color='skyblue',
-            marker_line_color='navy',
-            marker_line_width=1.5
-        ))
-        
-        # Add average line
-        fig.add_hline(
-            y=avg_count,
-            line_dash="dash",
-            line_color="red",
-            annotation_text=f"Average: {avg_count:.1f}",
-            annotation_position="right"
-        )
-        
-        # Update layout
-        fig.update_layout(
-            title=title,
-            xaxis_title="Partition",
-            yaxis_title="Number of Records",
-            showlegend=False,
-            height=500
-        )
-        
-        # Display in Streamlit
-        st.plotly_chart(fig, use_container_width=True)
+
+        if not partitions or not counts:
+            logging.warning("No data available to visualize.")
+        else:
+            avg_count = sum(counts) / len(counts)
+            
+            # Create Plotly figure
+            fig = go.Figure()
+            
+            # Add bar chart
+            fig.add_trace(go.Bar(
+                x=partitions,
+                y=counts,
+                text=counts,
+                textposition='outside',
+                marker_color='skyblue',
+                marker_line_color='navy',
+                marker_line_width=1.5
+            ))
+            
+            # Add average line
+            fig.add_hline(
+                y=avg_count,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"Average: {avg_count:.1f}",
+                annotation_position="right"
+            )
+            
+            # Update layout
+            fig.update_layout(
+                title=title,
+                xaxis_title="Partition",
+                yaxis_title="Number of Records",
+                showlegend=False,
+                height=500
+            )
+            
+            # Display in Streamlit
+            st.plotly_chart(fig, use_container_width=True)
