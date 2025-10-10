@@ -230,7 +230,7 @@ def main():
                                                                     value=DEFAULT_KAFKA_TOPIC_MINIMUM_PARTITION_COUNT,
                                                                     step=1,
                                                                     help="Use arrows or type to change value")
-    if st.button("Run Tests"):
+    if st.button("Run Key Distribution and Hot Partition Analyzer Tests"):
         result = run_tests(kafka_credentials[selected_kafka_cluster_id],
                            distribution_topic_name=distribution_topic_name,
                            key_pattern=ast.literal_eval(key_pattern) if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
@@ -241,9 +241,9 @@ def main():
         st.success(result)
         st.balloons()
 
-    if st.button("Exit"):
+    if st.button("Cleanup"):
         delete_all_kafka_credentals_created(cc_credential, kafka_credentials)
-        st.success("Cleanup completed. Exiting the application.")
+        st.success("Cleanup completed. You can close the Tool now.")
         st.stop()
         sys.exit(0)
 
