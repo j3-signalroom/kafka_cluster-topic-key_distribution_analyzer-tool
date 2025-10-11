@@ -78,7 +78,7 @@ def run_tests(kafka_cluster: Dict,
               distribution_partition_count: int, 
               distribution_record_count: int,
               data_skew_topic_name: str,
-              data_skew_partition_count: int) -> None:
+              data_skew_partition_count: int) -> bool:
     """Run the Key Distribution and Data Skew tests.
 
     Arg(s):
@@ -91,7 +91,7 @@ def run_tests(kafka_cluster: Dict,
         data_skew_partition_count (int): Number of partitions for the data skew topic.
 
     Return(s):
-        None
+        bool: True if tests ran successfully, False otherwise.
     """
     # Initialize Key Distribution Tester
     distribution_test = KeyDistributionTester(kafka_cluster_id=kafka_cluster['kafka_cluster_id'],
@@ -108,6 +108,9 @@ def run_tests(kafka_cluster: Dict,
                                                       distribution_partition_count=distribution_partition_count,
                                                       distribution_record_count=distribution_record_count,
                                                       key_pattern=key_pattern)
+    if not distribution_results:
+        return False
+
     logging.info("Key Distribution Test Results: %s", distribution_results)
 
     # Initialize Key Data Skew Tester
@@ -143,6 +146,8 @@ def run_tests(kafka_cluster: Dict,
     with st.container(border=True):
         st.subheader("Key Data Skew Test Results")
         data_skew_test.visualize_data_skew(data_skew_results, "Skewed Distribution Example")
+
+    return True
 
 
 def delete_all_kafka_credentals_created(cc_credential: Dict, kafka_credentials: Dict) -> None:

@@ -33,11 +33,7 @@ class KeyDistributionTester:
                  kafka_cluster_id: str, 
                  bootstrap_server_uri: str, 
                  kafka_api_key: str, 
-                 kafka_api_secret: str,
-                 distribution_topic_name: str, 
-                 distribution_partition_count: int, 
-                 replication_factor: int, 
-                 data_retention_in_days: int,):
+                 kafka_api_secret: str):
         """Connect to the Kafka Cluster with the AdminClient.
 
         Args:
@@ -45,10 +41,6 @@ class KeyDistributionTester:
             bootstrap_server_uri (string): Kafka Cluster URI
             kafka_api_key (string): Your Confluent Cloud Kafka API key
             kafka_api_secret (string): Your Confluent Cloud Kafka API secret
-            distribution_topic_name (str): Kafka topic name.
-            distribution_partition_count (int): Number of partitions for the topic.
-            replication_factor (int): Replication factor for the topic.
-            data_retention_in_days (int): Data retention period in days.
         """
         self.kafka_cluster_id = kafka_cluster_id
         self.bootstrap_server_uri = bootstrap_server_uri
@@ -89,13 +81,6 @@ class KeyDistributionTester:
         }
 
         self.partition_mapping = defaultdict(list)
-
-        # Create topic
-        create_topic_if_not_exists(self.admin_client,
-                                   distribution_topic_name, 
-                                   distribution_partition_count, 
-                                   replication_factor, 
-                                   data_retention_in_days)
 
     def __delivery_callback(self, error_message: str, record) -> None:
         """Callback invoked when a message is delivered or fails.
@@ -288,17 +273,27 @@ class KeyDistributionTester:
                  distribution_topic_name: str, 
                  distribution_partition_count: int,
                  distribution_record_count: int, 
-                 key_pattern: List[str]) -> Dict:
+                 key_pattern: List[str],
+                 replication_factor: int, 
+                 data_retention_in_days: int) -> Dict | None:
         """Run the Key Distribution Test.
         Arg(s):
             distribution_topic_name (str): Kafka topic name.
             distribution_partition_count (int): Number of partitions for the topic.
             distribution_record_count (int): Number of records to produce for the test.
+            key_pattern (List[str]): List of key patterns to use.
+            replication_factor (int): Replication factor for the topic.
+            data_retention_in_days (int): Data retention period in days.
 
         Return(s):
             Dict: Test results including distribution metrics and visualizations.
         """
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
+
+        # Create topic
+        if not create_topic_if_not_exists(self.admin_client, distribution_topic_name, distribution_partition_count, replication_factor, data_retention_in_days):
+            logging.error("Failed to create or recreate topic '%s'. Aborting test.", distribution_topic_name)
+            return None
         
         # Produce records
         self.__produce_test_records(distribution_topic_name, distribution_record_count, key_pattern)
