@@ -243,7 +243,7 @@ def main():
                            data_skew_topic_name=data_skew_topic_name,
                            data_skew_partition_count=data_skew_partition_count)
         if not result:
-            st.error("The tests failed. Please check the log file for more details.")
+            st.warning("The Tool was unable to complete the tests. Please check that you selected the correct Kafka cluster in the region you have access to.")
         else:
             st.balloons()
 
