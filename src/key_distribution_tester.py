@@ -286,7 +286,8 @@ class KeyDistributionTester:
             data_retention_in_days (int): Data retention period in days.
 
         Return(s):
-            Dict: Test results including distribution metrics and visualizations.
+            Dict: Results of the Key Distribution test.
+            None: If topic creation fails.
         """
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
 
