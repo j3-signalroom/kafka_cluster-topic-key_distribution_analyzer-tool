@@ -82,8 +82,7 @@ def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: i
         logging.error(f"Failed to list topics: {e}")
         return False
 
-    # If topic exists, verify retention policy
-    retention_policy = '-1' if data_retention_in_days == 0 else str(data_retention_in_days * 24 * 60 * 60 * 1000)  # Convert days to milliseconds
+    # If topic exists
     if topic_name in topic_list.topics:
         logging.info(f"Kafka topic '{topic_name}' already exists, recreating topic.")
 
@@ -97,18 +96,20 @@ def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: i
             except Exception as e:
                 logging.error(f"Failed to delete topic '{topic}': {e}")
                 return False
+    else:
+        logging.info(f"Kafka topic '{topic_name}' does not exist, creating topic.")
 
     # Create new topic
     logging.info(f"Creating Kafka topic '{topic_name}' with {partition_count} partitions")
 
     new_topic = NewTopic(topic=topic_name,
-                            num_partitions=partition_count,
-                            replication_factor=replication_factor,
-                            config={
-                                'cleanup.policy': 'delete',
-                                'retention.ms': retention_policy,
-                                'compression.type': 'lz4'
-                            })
+                         num_partitions=partition_count,
+                         replication_factor=replication_factor,
+                         config={
+                             'cleanup.policy': 'delete',
+                             'retention.ms': '-1' if data_retention_in_days == 0 else str(data_retention_in_days * 24 * 60 * 60 * 1000),  # Convert days to milliseconds
+                             'compression.type': 'lz4'
+                         })
     
     futures = admin_client.create_topics([new_topic])
     
