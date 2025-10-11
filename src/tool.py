@@ -242,8 +242,10 @@ def main():
                            distribution_record_count=int(selected_distribution_record_count.replace(",", "")),
                            data_skew_topic_name=data_skew_topic_name,
                            data_skew_partition_count=data_skew_partition_count)
-        st.success(result)
-        st.balloons()
+        if not result:
+            st.error("The tests failed. Please check the log file for more details.")
+        else:
+            st.balloons()
 
     if st.button("Cleanup"):
         delete_all_kafka_credentals_created(cc_credential, kafka_credentials)
