@@ -16,6 +16,9 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
 - [**1.0 To get started**](#10-to-get-started)
    + [**1.1 Download the Tool**](#11-download-the-tool)
    + [**1.2 Configure the Tool**](#12-configure-the-tool)
+      - [**1.2.1 Create a Dedicated Service Account for the Analyzer Tool**](#121-create-a-dedicated-service-account-for-the-analyzer-tool)
+      - [**1.2.2 Create the `.env` file**](#122-create-the-env-file)
+      - [**1.2.3 Using the AWS Secrets Manager (optional)**](#123-using-the-aws-secrets-manager-optional)
    + [**1.3 Run the Tool**](#13-run-the-tool)
       - [**1.3.1 Did you notice we prefix `uv run` to `streamlit run src/tool.py`?**](#131-did-you-notice-we-prefix-uv-run-to-streamlit-run-srctoolpy)
       - [**1.3.2 Troubleshoot Connectivity Issues (if any)**](#132-troubleshoot-connectivity-issues-if-any)
@@ -41,7 +44,118 @@ Since this project was built using [**`uv`**](https://docs.astral.sh/uv/), plea
 
 ### **1.2 Configure the Tool**
 
-Now, you need to set up the tool by creating a `.env` file in the root directory of your project.
+Now, you need to set up the tool by creating a `.env` file in the root directory of your project. This file will store all the essential environment variables required for the tool to connect to your Confluent Cloud Platform and function correctly. Additionally, you can choose to use **AWS Secrets Manager** to manage your secrets.
+
+#### **1.2.1 Create a Dedicated Service Account for the Analyzer Tool**
+The service account needs to have [OrganizationAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#organizationadmin), [EnvironmentAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#environmentadmin) or [CloudClusterAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#cloudclusteradmin) role to provision Kafka cluster API keys and the [MetricsViewer](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#metricsviewer-role) role to access the Metrics API for all clusters it has access to.
+
+1. Use the [Confluent CLI (Command-Line Interface)](https://docs.confluent.io/confluent-cli/current/overview.html) to create the service account:
+
+   > **Note:** If you haven't already, install the [Confluent CLI](https://docs.confluent.io/confluent-cli/current/overview.html) and log in to your Confluent Cloud account using `confluent login`.  Moreover, the account you use to log in must have the [OrganizationAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#organizationadmin) role to create the **Cloud API key in Step 5**.
+
+   ```shell
+   confluent iam service-account create <SERVICE_ACCOUNT_NAME> --description "<DESCRIPTION>"
+   ```
+
+   For instance, you run `confluent iam service-account create recommender-service-account --description "Service account for Recommender Tool"`, the output should resemble:
+   ```shell
+   +-------------+--------------------------------+
+   | ID          | sa-abcd123                     |
+   | Name        | recommender-service-account    |
+   | Description | Service account for            |
+   |             | Recommender Tool               |
+   +-------------+--------------------------------+
+   ```
+2. Make note of the service account ID in the output, which is in the form `sa-xxxxxxx`, which you will assign the [OrganizationAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#organizationadmin), [EnvironmentAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#environmentadmin) or [CloudClusterAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#cloudclusteradmin) role, and [MetricsViewer](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#metricsviewer-role) role to in the next steps, and assign it to the `PRINCIPAL_ID` environment variable in the `.env` file.
+
+3. Decide at what level you want to assign the [OrganizationAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#organizationadmin), [EnvironmentAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#environmentadmin) or [CloudClusterAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#cloudclusteradmin) role to the service account.  The recommended approach is to assign the role at the organization level so that the service account can provision API keys for any Kafka cluster in the organization.  If you want to restrict the service account to only be able to provision API keys for Kafka clusters in a specific environment, then assign the EnvironmentAdmin role at the environment level.  If you want to restrict the service account to only be able to provision API keys for a specific Kafka cluster, then assign the CloudClusterAdmin role at the cluster level.
+
+   For example, to assign the [EnvironmentAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#environmentadmin) role at the environment level:
+   ```shell
+   confluent iam rbac role-binding create --role EnvironmentAdmin --principal User:<SERVICE_ACCOUNT_ID> --environment <ENVIRONMENT_ID>
+   ```
+
+   Or, to assign the [CloudClusterAdmin](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#cloudclusteradmin) role at the cluster level:
+   ```shell
+   confluent iam rbac role-binding create --role CloudClusterAdmin --principal User:<SERVICE_ACCOUNT_ID> --cluster <KAFKA_CLUSTER_ID>
+   ```
+
+   For instance, you run `confluent iam rbac role-binding create --role EnvironmentAdmin --principal User:sa-abcd123 --environment env-123abc`, the output should resemble:
+   ```shell
+   +-----------+------------------+
+   | ID        | rb-j3XQ8Y        |
+   | Principal | User:sa-abcd123  |
+   | Role      | EnvironmentAdmin |
+   +-----------+------------------+
+   ```
+
+4. Assign the [MetricsViewer](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#metricsviewer-role) role to the service account at the organization, environment, or cluster level,  For example to assign the [MetricsViewer](https://docs.confluent.io/cloud/current/security/access-control/rbac/predefined-rbac-roles.html#metricsviewer-role) role at the environment level:
+   ```shell
+   confluent iam rbac role-binding create --role MetricsViewer --principal User:<SERVICE_ACCOUNT_ID> --environment <ENVIRONMENT_ID>
+   ```
+
+   For instance, you run `confluent iam rbac role-binding create --role MetricsViewer --principal User:sa-abcd123 --environment env-123abc`, the output should resemble:
+   ```shell
+   +-----------+------------------+
+   | ID        | rb-1GgVMN        |
+   | Principal | User:sa-abcd123  |
+   | Role      | MetricsViewer    |
+   +-----------+------------------+
+   ```
+
+5. Create an API key for the service account:
+   ```shell
+   confluent api-key create --resource cloud --service-account <SERVICE_ACCOUNT_ID> --description "<DESCRIPTION>"
+   ```
+
+   For instance, you run `confluent api-key create --resource cloud --service-account sa-abcd123 --description "API Key for Recommender Tool"`, the output should resemble:
+   ```shell
+   +------------+------------------------------------------------------------------+
+   | API Key    | 1WORLDABCDEF7OAB                                                 |
+   | API Secret | cfltabCdeFg1hI+/2j34KLMnoprSTuvxy/Za+b5/6bcDe/7fGhIjklMnOPQ8rT9U |
+   +------------+------------------------------------------------------------------+
+   ```
+
+6. Make note of the API key and secret in the output, which you will assign to the `confluent_cloud_api_key` and `confluent_cloud_api_secret` environment variables in the `.env` file. Alternatively, you can securely store and retrieve these credentials using AWS Secrets Manager.
+
+#### **1.2.2 Create the `.env` file**
+Create the `.env` file and add the following environment variables, filling them with your Confluent Cloud credentials and other required values:
+```shell
+# Environment variables credential for Confluent Cloud
+CONFLUENT_CLOUD_CREDENTIAL={"confluent_cloud_api_key":"<YOUR_CONFLUENT_CLOUD_API_KEY>", "confluent_cloud_api_secret": "<YOUR_CONFLUENT_CLOUD_API_SECRET>"}
+
+# Environment and Kafka cluster filters (comma-separated IDs)
+# Example: ENVIRONMENT_FILTER="env-123,env-456"
+# Example: KAFKA_CLUSTER_FILTER="lkc-123,lkc-456"
+ENVIRONMENT_FILTER=<YOUR_ENVIRONMENT_FILTER, IF ANY>
+KAFKA_CLUSTER_FILTER=<YOUR_KAFKA_CLUSTER_FILTER, IF ANY>
+
+# Confluent Cloud principal ID (user or service account) for API key creation
+# Example: PRINCIPAL_ID=u-abc123 or PRINCIPAL_ID=sa-xyz789
+PRINCIPAL_ID=<YOUR_PRINCIPAL_ID>
+
+# AWS Secrets Manager Secrets for Confluent Cloud and Kafka clusters
+USE_AWS_SECRETS_MANAGER=<True|False>
+CONFLUENT_CLOUD_API_SECRET_PATH={"region_name": "<YOUR_SECRET_AWS_REGION_NAME>", "secret_name": "<YOUR_CONFLUENT_CLOUD_API_KEY_AWS_SECRETS>"}
+```
+
+The environment variables are defined as follows:
+
+| Environment Variable Name | Type | Description | Example | Default | Required |
+|---------------|------|-------------|---------|---------|----------|
+| `ENVIRONMENT_FILTER` | Comma-separated String | A list of specific Confluent Cloud environment IDs to filter. When provided, only these environments will be used to fetch Kafka cluster credentials. Use commas to separate multiple environment IDs. Leave blank or unset to use all available environments. | `env-123,env-456` | Empty (all environments) | No |
+| `PRINCIPAL_ID` | String | Confluent Cloud principal ID (user or service account) for API key creation. | `u-abc123` or `sa-xyz789` | None | Yes |
+| `KAFKA_CLUSTER_FILTER` | Comma-separated String | A list of specific Kafka cluster IDs to filter. When provided, only these Kafka clusters will be analyzed. Use commas to separate multiple cluster IDs. Leave blank or unset to analyze all available clusters. | `lkc-123,lkc-456` | Empty (all clusters) | No |
+| `CONFLUENT_CLOUD_CREDENTIAL` | JSON Object | Contains authentication credentials for Confluent Cloud API access. Must include `confluent_cloud_api_key` and `confluent_cloud_api_secret` fields for authenticating with Confluent Cloud services. | `{"confluent_cloud_api_key": "CKABCD123456", "confluent_cloud_api_secret": "xyz789secretkey"}` | None | Yes (if not using AWS Secrets Manager) |
+| `USE_AWS_SECRETS_MANAGER` | Boolean | Controls whether to retrieve credentials from AWS Secrets Manager instead of using direct environment variables. When `True`, credentials are fetched from AWS Secrets Manager using the paths specified in other variables. | `True` or `False` | `False` | No |
+| `CONFLUENT_CLOUD_API_SECRET_PATH` | JSON Object | AWS Secrets Manager configuration for Confluent Cloud credentials. Contains `region_name` (AWS region) and `secret_name` (name of the secret in AWS Secrets Manager). Only used when `USE_AWS_SECRETS_MANAGER` is `True`. | `{"region_name": "us-east-1", "secret_name": "confluent-cloud-api-credentials"}` | None | Yes (if `USE_AWS_SECRETS_MANAGER` is `True`) |
+
+#### **1.2.3 Using the AWS Secrets Manager (optional)**
+If you use **AWS Secrets Manager** to manage your secrets, set the `USE_AWS_SECRETS_MANAGER` variable to `True` and the tool will retrieve the secrets from AWS Secrets Manager using the names provided in `CONFLUENT_CLOUD_API_KEY_AWS_SECRETS`.  
+
+The code expects the `CONFLUENT_CLOUD_API_KEY_AWS_SECRETS` to be stored in JSON format with these keys:
+- `confluent_cloud_api_key`
+- `confluent_cloud_api_secret`
 
 ### **1.3 Run the Tool**
 
