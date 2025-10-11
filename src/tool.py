@@ -99,15 +99,15 @@ def run_tests(kafka_cluster: Dict,
                                               kafka_api_key=kafka_cluster['sasl.username'],
                                               kafka_api_secret=kafka_cluster['sasl.password'],
                                               distribution_topic_name=distribution_topic_name,
-                                              distribution_partition_count=distribution_partition_count,
-                                              replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
-                                              data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
+                                              distribution_partition_count=distribution_partition_count)
 
     # Run Key Distribution Test
     distribution_results = distribution_test.run_test(distribution_topic_name=distribution_topic_name,
                                                       distribution_partition_count=distribution_partition_count,
                                                       distribution_record_count=distribution_record_count,
-                                                      key_pattern=key_pattern)
+                                                      key_pattern=key_pattern,
+                                                      replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
+                                                      data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
     if not distribution_results:
         return False
 
