@@ -97,9 +97,7 @@ def run_tests(kafka_cluster: Dict,
     distribution_test = KeyDistributionTester(kafka_cluster_id=kafka_cluster['kafka_cluster_id'],
                                               bootstrap_server_uri=kafka_cluster['bootstrap.servers'],
                                               kafka_api_key=kafka_cluster['sasl.username'],
-                                              kafka_api_secret=kafka_cluster['sasl.password'],
-                                              distribution_topic_name=distribution_topic_name,
-                                              distribution_partition_count=distribution_partition_count)
+                                              kafka_api_secret=kafka_cluster['sasl.password'])
 
     # Run Key Distribution Test
     distribution_results = distribution_test.run_test(distribution_topic_name=distribution_topic_name,
@@ -117,14 +115,15 @@ def run_tests(kafka_cluster: Dict,
     data_skew_test = KeyDataSkewTester(kafka_cluster_id=kafka_cluster['kafka_cluster_id'],
                                        bootstrap_server_uri=kafka_cluster['bootstrap.servers'],
                                        kafka_api_key=kafka_cluster['sasl.username'],
-                                       kafka_api_secret=kafka_cluster['sasl.password'],
-                                       data_skew_topic_name=data_skew_topic_name,
-                                       data_skew_partition_count=data_skew_partition_count,
-                                       replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
-                                       data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
+                                       kafka_api_secret=kafka_cluster['sasl.password'])
 
     # Run Key Data Skew Test
-    data_skew_results = data_skew_test.run_test(data_skew_topic_name=data_skew_topic_name)
+    data_skew_results = data_skew_test.run_test(data_skew_topic_name=data_skew_topic_name,
+                                                data_skew_partition_count=data_skew_partition_count,
+                                                replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
+                                                data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
+    if not data_skew_results:
+        return False
 
     logging.info("Key Data Skew Test Results: %s", data_skew_results)
 
