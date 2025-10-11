@@ -8,6 +8,9 @@ The format is base on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), 
 ### Added
 - Issue [#57](https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution-hot_partition_analyzer-tool/issues/57)
 
+### Fixed
+- Issue [#59](https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution-hot_partition_analyzer-tool/issues/59)
+
 ## [0.01.00.000] - 2025-10-10
 ### Added
 - First release.
