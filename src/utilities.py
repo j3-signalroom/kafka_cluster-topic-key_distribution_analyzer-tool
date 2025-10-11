@@ -61,7 +61,7 @@ def setup_logging(log_file: str = DEFAULT_TOOL_LOG_FILE) -> logging.Logger:
 
     return logging.getLogger()
 
-def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: int, replication_factor: int, data_retention_in_days: int) -> None:
+def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: int, replication_factor: int, data_retention_in_days: int) -> bool:
     """Create the results topic if it doesn't exist.
 
     Args:
@@ -72,11 +72,16 @@ def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: i
         data_retention_in_days (int): Data retention period in days.
     
     Return(s):
-        None
+        bool: True if the topic was created, False if it to create or recreate a Kafka
+        topic.
     """
     # Check if topic exists
-    topic_list = admin_client.list_topics(timeout=10)
-    
+    try:
+        topic_list = admin_client.list_topics(timeout=10)
+    except Exception as e:
+        logging.error(f"Failed to list topics: {e}")
+        return False
+
     # If topic exists, verify retention policy
     retention_policy = '-1' if data_retention_in_days == 0 else str(data_retention_in_days * 24 * 60 * 60 * 1000)  # Convert days to milliseconds
     if topic_name in topic_list.topics:
@@ -91,7 +96,7 @@ def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: i
                 logging.info(f"Topic '{topic}' deleted successfully")
             except Exception as e:
                 logging.error(f"Failed to delete topic '{topic}': {e}")
-                raise
+                return False
 
     # Create new topic
     logging.info(f"Creating Kafka topic '{topic_name}' with {partition_count} partitions")
@@ -114,4 +119,6 @@ def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: i
             logging.info(f"Topic '{topic}' created successfully")
         except Exception as e:
             logging.error(f"Failed to create topic '{topic}': {e}")
-            raise
+            return False
+        
+    return True
