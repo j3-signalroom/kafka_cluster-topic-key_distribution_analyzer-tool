@@ -388,7 +388,7 @@ class KeyDistributionAnalyzer:
 
         if partition_strategy_type == PartitionStrategyType.DEFAULT_MURMURHASH2:
             progress_bar.progress(44, text="Analyzing...  Theoretical hash distribution")
-            hash_distribution = self.__test_hash_distribution(partition_strategy_type, all_keys, partition_count)
+            hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
             if hash_distribution is None:
                 logging.error("Hash distribution test failed due to unimplemented partition strategy. Aborting test.")
                 return None, "Hash distribution test failed due to unimplemented partition strategy."
