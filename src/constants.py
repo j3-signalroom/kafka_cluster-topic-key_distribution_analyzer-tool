@@ -17,7 +17,7 @@ DEFAULT_CHARACTER_REPEAT: Final[int] = 100
 DEFAULT_USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS: Final[str] = "False"
 
 # Logging configuration
-DEFAULT_TOOL_LOG_FILE: Final[str] = "kafka_cluster-topic-key-distribution-hot-partition-analyzer-tool.log"
+DEFAULT_TOOL_LOG_FILE: Final[str] = "kafka_cluster-topic-key-distribution-analyzer-tool.log"
 DEFAULT_TOOL_LOG_FORMAT: Final[str] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 DEFAULT_KAFKA_TOPIC_NAME: Final[str] = "_j3.key_distribution_test_topic"
