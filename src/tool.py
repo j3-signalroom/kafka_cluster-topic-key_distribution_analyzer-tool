@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from dotenv import load_dotenv
 import logging
 import streamlit as st
@@ -76,7 +76,7 @@ def run_tests(kafka_cluster: Dict,
               partition_count: int, 
               record_count: int,
               key_simulation_type: int,
-              partition_strategy_type: int) -> bool:
+              partition_strategy_type: int) -> Tuple[bool, str]:
     """Run the Key Distribution and Data Skew tests.
 
     Arg(s):
@@ -89,7 +89,9 @@ def run_tests(kafka_cluster: Dict,
         partition_strategy_type (int): Partition strategy type index.
 
     Return(s):
-        bool: True if tests ran successfully, False otherwise.
+        Tuple containing:
+            - bool: True if tests ran successfully, False otherwise.
+            - str: Error message if any.
     """
     # Initialize Key Distribution Tester
     distribution_test = KeyDistributionAnalyzer(kafka_cluster_id=kafka_cluster['kafka_cluster_id'],
@@ -98,17 +100,17 @@ def run_tests(kafka_cluster: Dict,
                                               kafka_api_secret=kafka_cluster['sasl.password'])
 
     # Run Key Distribution Test
-    distribution_results = distribution_test.run_test(st,
-                                                      topic_name=topic_name,
-                                                      partition_count=partition_count,
-                                                      record_count=record_count,
-                                                      key_pattern=key_pattern,
-                                                      replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
-                                                      data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
-                                                      key_simulation_type=key_simulation_type,
-                                                      partition_strategy_type=partition_strategy_type)
+    distribution_results, error_message = distribution_test.run_test(st,
+                                                                     topic_name=topic_name,
+                                                                     partition_count=partition_count,
+                                                                     record_count=record_count,
+                                                                     key_pattern=key_pattern,
+                                                                     replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
+                                                                     data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
+                                                                     key_simulation_type=key_simulation_type,
+                                                                     partition_strategy_type=partition_strategy_type)
     if not distribution_results:
-        return False
+        return False, error_message
 
     logging.info("Key Distribution Test Results: %s", distribution_results)
 
@@ -159,7 +161,7 @@ def run_tests(kafka_cluster: Dict,
                 hide_index=True  # Hide the default DataFrame index
             )
 
-    return True
+    return True, ""
 
 
 def delete_all_kafka_credentals_created(cc_credential: Dict, kafka_credentials: Dict) -> None:
@@ -255,15 +257,15 @@ def main():
                                                              label='Record Count:',
                                                              options=["10", "100", "1,000", "10,000", "100,000"])
         if st.button("Run Key Distribution Analyzer Test"):
-            result = run_tests(kafka_credentials[selected_kafka_cluster_id],
-                               topic_name=topic_name,
-                               key_pattern=ast.literal_eval(key_pattern) if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
-                               partition_count=partition_count,
-                               record_count=int(selected_record_count.replace(",", "")),
-                               key_simulation_type=selected_key_simulation_index,
-                               partition_strategy_type=selected_partition_strategy_index)
+            result, error_message = run_tests(kafka_credentials[selected_kafka_cluster_id],
+                                              topic_name=topic_name,
+                                              key_pattern=ast.literal_eval(key_pattern) if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
+                                              partition_count=partition_count,
+                                              record_count=int(selected_record_count.replace(",", "")),
+                                              key_simulation_type=selected_key_simulation_index,
+                                              partition_strategy_type=selected_partition_strategy_index)
             if not result:
-                st.warning("The Tool was unable to complete the tests. Please check that you selected the correct Kafka cluster in the region you have access to.")
+                st.error(error_message)
             else:
                 st.balloons()
 
