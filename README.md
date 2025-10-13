@@ -1,4 +1,4 @@
-# Kafka Cluster Topic Key Distribution Hot Partition Analyzer Tool
+# Kafka Cluster Topic Key Distribution Analyzer Tool
 Efficient **Kafka key distribution** is fundamental to building scalable, high-performance event-driven systems. Kafka uses each record’s key to determine which partition it belongs to—governing **data ordering**, **load balancing**, and **parallelism** across the cluster. When key distribution is uneven, some partitions become hot, processing far more traffic than others. These **hot partitions** lead to broker overload, consumer lag, and throttled throughput, undermining the scalability of your Kafka workloads.
 
 This tool helps you **test**, **visualize**, and **validate** how record keys are distributed across topic partitions in your Kafka cluster. It generates records using configurable key patterns, publishes them to a target topic, and then consumes the data to analyze partition utilization and message distribution metrics.
@@ -34,7 +34,7 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
 ### 1.1 Download the Tool
 Clone the repo:
     ```shell
-    git clone https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution-hot_partition_analyzer-tool.git
+    git clone https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution_analyzer-tool.git
     ```
 
 Since this project was built using [**`uv`**](https://docs.astral.sh/uv/), please [install](https://docs.astral.sh/uv/getting-started/installation/) it, and then run the following command to install all the project dependencies:
@@ -161,10 +161,10 @@ The code expects the `CONFLUENT_CLOUD_API_KEY_AWS_SECRETS` to be stored in JSON 
 
 **Navigate to the Project Root Directory**
 
-Open your Terminal and navigate to the root folder of the `kafka_cluster-topic-key_distribution-hot_partition_analyzer-tool/` repository that you have cloned. You can do this by executing:
+Open your Terminal and navigate to the root folder of the `kafka_cluster-topic-key_distribution_analyzer-tool/` repository that you have cloned. You can do this by executing:
 
 ```shell
-cd path/to/kafka_cluster-topic-key_distribution-hot_partition_analyzer-tool/
+cd path/to/kafka_cluster-topic-key_distribution_analyzer-tool/
 ```
 
 > Replace `path/to/` with the actual path where your repository is located.
