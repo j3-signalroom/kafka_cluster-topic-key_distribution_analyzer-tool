@@ -238,7 +238,9 @@ def main():
             else:
                 st.balloons()
 
-        if st.button("Cleanup Resources", 
+        st.divider()
+
+        if st.button("Cleanup Resources before Closing the Tool", 
                      help="This will delete all the Kafka Cluster API keys created for each Kafka Cluster instance.", 
                      type="secondary", 
                      disabled=not st.session_state['true_or_false']):
