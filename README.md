@@ -29,6 +29,7 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
       - [**1.4.4 Example of High Cardinality Key Distribution Simulation Results**](#144-example-of-high-cardinality-key-distribution-simulation-results)
       - [**1.4.5 Example of No Repetition Key Distribution Simulation Results**](#145-example-of-no-repetition-key-distribution-simulation-results)
 - [**2.0 How the Tool Works**](#20-how-the-tool-works)
+   + [**2.1 End-to-End Flow**](#21-end-to-end-flow)
 - [**3.0 Resources**](#30-resources)
 <!-- tocstop -->
 
@@ -238,6 +239,163 @@ Once the tool completes its analysis, it will display a dashboard with visualiza
 ![analyzer-dashboard-no-repetition-key-simulation](.blog/images/analyzer-dashboard-no-repetition-key-simulation.png)
 
 ## **2.0 How the Tool Works**
+
+### 2.1 **End-to-End Flow**
+The following sequence diagram illustrates the interactions between the user, Streamlit UI, and various components of the tool during its execution:
+```mermaid
+sequenceDiagram
+    actor User
+    participant UI as Streamlit UI
+    participant Main as tool.py
+    participant Cred as confluent_credentials.py
+    participant AWS as AWS Secrets Manager
+    participant CC as Confluent Cloud API
+    participant KDA as KeyDistributionAnalyzer
+    participant Admin as Kafka AdminClient
+    participant Producer as Kafka Producer
+    participant Util as utilities.py
+
+    Note over User,Util: Initialization Phase
+    User->>UI: Launch Tool
+    UI->>Main: main()
+    Main->>Main: fetch_environment_with_kakfa_credentials()
+    Main->>Cred: fetch_confluent_cloud_credential_via_env_file()
+    
+    alt Use AWS Secrets Manager
+        Cred->>AWS: get_secrets()
+        AWS-->>Cred: Return CC credentials
+    else Use .env file
+        Cred->>Cred: Read from environment
+    end
+    
+    Cred-->>Main: Return cc_credential
+    
+    Main->>Cred: fetch_kafka_credentials_via_confluent_cloud_api_key()
+    Cred->>CC: EnvironmentClient.get_environments()
+    CC-->>Cred: Return environments
+    
+    loop For each environment
+        Cred->>CC: EnvironmentClient.get_kafka_clusters()
+        CC-->>Cred: Return kafka_clusters
+        
+        loop For each Kafka cluster
+            Cred->>CC: IamClient.create_api_key()
+            CC-->>Cred: Return API key pair
+            Cred->>Cred: Store kafka_credentials
+        end
+    end
+    
+    Cred-->>Main: Return environments, kafka_clusters, kafka_credentials
+    Main-->>UI: Display environment & cluster selection
+
+    Note over User,Util: Configuration Phase
+    User->>UI: Select environment
+    User->>UI: Select Kafka cluster
+    User->>UI: Enter topic name
+    User->>UI: Configure key pattern
+    User->>UI: Select key simulation type
+    User->>UI: Set partition count
+    User->>UI: Set record count
+    User->>UI: Click "Run Key Distribution Analysis Tests"
+
+    Note over User,Util: Execution Phase
+    UI->>Main: run_tests()
+    Main->>KDA: Initialize KeyDistributionAnalyzer
+    KDA->>KDA: Setup AdminClient config
+    KDA->>KDA: Setup Producer config
+    KDA->>KDA: Setup Consumer config
+    
+    Main->>KDA: run_test()
+    KDA->>UI: progress_bar.progress(0.125)
+    
+    KDA->>Util: create_topic_if_not_exists()
+    Util->>Admin: list_topics()
+    Admin-->>Util: Return topic list
+    
+    alt Topic exists
+        Util->>Admin: delete_topics()
+        Admin-->>Util: Confirm deletion
+    end
+    
+    Util->>Admin: create_topics()
+    Admin-->>Util: Confirm creation
+    Util-->>KDA: Return success
+    
+    KDA->>UI: progress_bar.progress(0.25)
+    KDA->>KDA: __produce_test_records()
+    
+    loop For each record
+        KDA->>KDA: Generate key based on simulation type
+        alt Normal
+            KDA->>KDA: key = pattern + (id % 100)
+        else Less Repetition
+            KDA->>KDA: key = pattern + (id % 1000)
+        else More Repetition
+            KDA->>KDA: key = pattern + (id % 10)
+        else No Repetition
+            KDA->>KDA: key = pattern + id
+        else Hot Key Data Skew
+            alt 80% of records
+                KDA->>KDA: key = "hot-key"
+            else 20% of records
+                KDA->>KDA: key = "cold-key-" + id
+            end
+        end
+        
+        KDA->>Producer: produce(topic, key, value)
+        Producer->>KDA: __delivery_callback()
+        KDA->>KDA: Store key in partition_mapping
+    end
+    
+    KDA->>Producer: flush()
+    
+    KDA->>UI: progress_bar.progress(0.375)
+    KDA->>KDA: __analyze_distribution()
+    KDA->>KDA: Calculate partition record counts
+    KDA->>KDA: Calculate key pattern distribution
+    
+    KDA->>UI: progress_bar.progress(0.5)
+    KDA->>KDA: __test_partition_strategies()
+    
+    par Test All Strategies
+        KDA->>KDA: __murmur2_hash_strategy()
+        KDA->>KDA: __round_robin_strategy()
+        KDA->>KDA: __sticky_strategy()
+        KDA->>KDA: __range_based_customer_strategy()
+        KDA->>KDA: __custom_strategy()
+    end
+    
+    KDA->>UI: __visualize_strategy_comparison()
+    UI->>UI: Display Plotly charts
+    UI->>UI: Display metrics summary
+    
+    KDA->>UI: progress_bar.progress(0.625)
+    KDA->>KDA: __test_hash_distribution()
+    KDA->>KDA: Calculate theoretical distribution
+    
+    KDA->>UI: progress_bar.progress(0.75)
+    KDA->>KDA: Compare actual vs theoretical
+    
+    KDA->>UI: progress_bar.progress(0.875)
+    KDA->>KDA: Calculate quality metrics
+    KDA->>KDA: Compute mean, std dev, CV
+    
+    KDA->>UI: progress_bar.progress(1.0)
+    KDA-->>Main: Return distribution_results
+    Main-->>UI: Display success & balloons
+
+    Note over User,Util: Cleanup Phase
+    User->>UI: Click "Cleanup Resources"
+    UI->>Main: delete_all_kafka_credentals_created()
+    
+    loop For each kafka_credential
+        Main->>CC: IamClient.delete_api_key()
+        CC-->>Main: Confirm deletion
+    end
+    
+    Main-->>UI: Display success message
+    UI-->>User: Tool ready to close
+```
 
 ## **3.0 Resources**
 
