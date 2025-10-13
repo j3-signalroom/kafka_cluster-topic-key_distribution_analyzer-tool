@@ -139,7 +139,24 @@ def run_tests(kafka_cluster: Dict,
         with col2:
             st.subheader("Consumer Key Distribution Test Results")
             distribution_test.visualize_distribution(distribution_results["consumer_partition_record_counts"], f"Actual Distribution - {topic_name}")
-            st.json(distribution_results["consumer_quality_metrics"])
+
+            data = {
+                "Metric": list(distribution_results["consumer_quality_metrics"].keys()),
+                "Value": list(distribution_results["consumer_quality_metrics"].values())
+            }
+            df = pd.DataFrame(data)
+            st.header("Consumer Quality Metrics")
+            st.dataframe(
+                df,
+                column_config={
+                    "Value": st.column_config.NumberColumn(
+                        "Value",
+                        format="%.2f",
+                        help="The value of the metric"
+                    ),
+                },
+                hide_index=True  # Hide the default DataFrame index
+            )
 
     return True
 
