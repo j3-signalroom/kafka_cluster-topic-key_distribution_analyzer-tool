@@ -436,13 +436,22 @@ class KeyDistributionAnalyzer:
             distribution[partition] += 1
         
         return distribution
-    
-    def __visualize_strategy_comparison(self, st: streamlit, strategy_results, partition_count: int) -> None:
-        """Create side-by-side comparison of all partition strategies using Streamlit"""
+
+    def __visualize_strategy_comparison(self, st: streamlit, key_simulation_name, strategy_results, partition_count: int) -> None:
+        """Visualize the comparison of partition strategies using Plotly in Streamlit.
+
+        Arg(s):
+            st (streamlit): Streamlit instance for visualization.
+            key_simulation_name (str): Name of the key simulation used.
+            strategy_results (Dict): Results of the partition strategies.
+            partition_count (int): Number of partitions.
+
+        Return(s):
+            None
+        """
+        st.subheader(f"Kafka Partition Strategy Comparison using a {key_simulation_name} Key Simulation")
         
-        st.subheader('Kafka Partition Strategy Comparison')
-        
-        # Create subplots with Plotly (better for Streamlit than matplotlib)
+        # Create subplots with Plotly
         rows = 2
         cols = 3
         fig = make_subplots(
@@ -541,6 +550,7 @@ class KeyDistributionAnalyzer:
                  key_pattern: List[str],
                  replication_factor: int, 
                  data_retention_in_days: int,
+                 key_simulation_name: str,
                  key_simulation_type: KeySimulationType) -> Tuple[Dict | None, str]:
         """Run the Key Distribution Test.
         Arg(s):
@@ -551,6 +561,7 @@ class KeyDistributionAnalyzer:
             key_pattern (List[str]): List of key patterns to use.
             replication_factor (int): Replication factor for the topic.
             data_retention_in_days (int): Data retention period in days.
+            key_simulation_name (str): Name of the key simulation to use.
             key_simulation_type (KeySimulationType): Type of key simulation to use.
 
         Return(s):
@@ -583,7 +594,7 @@ class KeyDistributionAnalyzer:
         for keys in self.partition_mapping.values():
             all_keys.extend(keys)
         strategy_results = self.__test_partition_strategies(all_keys, partition_count)
-        self.__visualize_strategy_comparison(st, strategy_results, partition_count)
+        self.__visualize_strategy_comparison(st, key_simulation_name, strategy_results, partition_count)
 
         # 5. Test theoretical hash distribution
         progress_bar.progress(0.625, text="Analyzing...  Theoretical hash distribution")

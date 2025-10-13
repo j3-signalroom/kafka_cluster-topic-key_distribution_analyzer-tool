@@ -74,6 +74,7 @@ def run_tests(kafka_cluster: Dict,
               key_pattern: List[str], 
               partition_count: int, 
               record_count: int,
+              key_simulation_name: str,
               key_simulation_type: int) -> Tuple[bool, str]:
     """Run the Key Distribution and Data Skew tests.
 
@@ -83,6 +84,7 @@ def run_tests(kafka_cluster: Dict,
         key_pattern (List[str]): List of key patterns to use.
         partition_count (int): Number of partitions for the producer topic.
         record_count (int): Number of records to produce.
+        key_simulation_name (str): Name of the key simulation to use.
         key_simulation_type (int): Key simulation type index.
 
     Return(s):
@@ -104,6 +106,7 @@ def run_tests(kafka_cluster: Dict,
                                                                      key_pattern=key_pattern,
                                                                      replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                                                                      data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
+                                                                     key_simulation_name=key_simulation_name,
                                                                      key_simulation_type=key_simulation_type)
     if not distribution_results:
         return False, error_message
@@ -183,7 +186,7 @@ def main():
                     with col1:
                         key_pattern = st.text_input("Key Pattern:", placeholder=DEFAULT_KAFKA_TOPIC_KEY_PATTERN)
                     with col2:
-                        key_simulation_options = ["Normal", "Less Repetition", "More Repetition", "No Repetition", "Hot Key (Data Skew)"]
+                        key_simulation_options = ["Normal", "Less Repetition", "More Repetition", "No Repetition", "Hot Key (data skew)"]
                         selected_key_simulation = st.selectbox(index=0,
                                                                label='Key Simulation:',
                                                                options=key_simulation_options)
@@ -205,6 +208,7 @@ def main():
                                               key_pattern=ast.literal_eval(key_pattern) if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
                                               partition_count=partition_count,
                                               record_count=int(selected_record_count.replace(",", "")),
+                                              key_simulation_name=selected_key_simulation,
                                               key_simulation_type=selected_key_simulation_index)
             if not result:
                 st.error(error_message)
