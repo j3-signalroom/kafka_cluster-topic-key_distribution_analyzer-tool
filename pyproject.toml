@@ -1,6 +1,6 @@
 [project]
 name = "kafka_cluster-topic-key-distribution-analyzer-tool"
-version = "0.02.00.000"
+version = "0.01.00.000"
 description = "Kafka Topic Key Distribution Analyzer Tool"
 readme = "README.md"
 requires-python = ">=3.13"
