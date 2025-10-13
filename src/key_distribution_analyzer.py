@@ -1,3 +1,4 @@
+from enum import IntEnum
 import time
 import json
 import hashlib
@@ -26,7 +27,25 @@ __status__     = "dev"
 logger = setup_logging()
 
 
-class KeyDistributionTester:
+# Key Simulation Types
+class KeySimulationType(IntEnum):
+    NORMAL = 0
+    LESS_REPETITION = 1
+    MORE_REPETITION = 2
+    NO_REPETITION = 3
+    HOT_KEY_DATA_SKEW = 4
+
+
+# Partition Strategy Types
+class PartitionStrategyType(IntEnum):
+    DEFAULT_MURMURHASH2 = 0
+    ROUND_ROBIN = 1
+    STICKY = 2
+    CUSTOM = 3
+    RANGE_BASED_CUSTOM = 4
+
+
+class KeyDistributionAnalyzer:
     """Class to test and analyze key distribution in Kafka topics."""
 
     def __init__(self, 
@@ -96,14 +115,17 @@ class KeyDistributionTester:
             self.partition_mapping[record.partition()].append(record.key().decode('utf-8'))
         except Exception as e:
             logging.error(f"Error Message, {error_message} in delivery callback: {e}")
-    
-    def __produce_test_records(self, topic_name, record_count: int, key_pattern: List[str]) -> None:
+
+    def __produce_test_records(self, topic_name, record_count: int, key_pattern: List[str], key_simulation_type: KeySimulationType) -> None:
         """Produce test records with specific key patterns to the topic.
+        Note: The modulo operations ensure the pattern cycles predictably, making it perfect
+              for testing Kafka's key-based partitioning behavior.
 
         Arg(s):
             topic_name (str): Kafka topic name.
             record_count (int): Number of records to produce.
             key_pattern (List[str]): List of key patterns to use.
+            key_simulation_type (KeySimulationType): Type of key simulation to use.
 
         Return(s):
             None
@@ -117,9 +139,26 @@ class KeyDistributionTester:
 
         for id in range(record_count):
             try:
-                # key
-                key_pattern = key_patterns[id % len(key_patterns)]
-                key_str = f"{key_pattern}{id % 100}"
+                match key_simulation_type:
+                    case KeySimulationType.NORMAL:
+                        key_pattern = key_patterns[id % len(key_patterns)]
+                        key_str = f"{key_pattern}{id % 100}"
+                    case KeySimulationType.LESS_REPETITION:
+                        key_pattern = key_patterns[id % len(key_patterns)]
+                        key_str = f"{key_pattern}{id % 1000}"
+                    case KeySimulationType.MORE_REPETITION:
+                        key_pattern = key_patterns[id % len(key_patterns)]
+                        key_str = f"{key_pattern}{id % 10}"
+                    case KeySimulationType.NO_REPETITION:
+                        key_pattern = key_patterns[id % len(key_patterns)]
+                        key_str = f"{key_pattern}{id}"
+                    case KeySimulationType.HOT_KEY_DATA_SKEW:
+                        # 80% of records use the same key
+                        if id < int(record_count * 0.8):
+                            key_str = "hot-key"
+                        else:
+                            key_str = f"cold-key-{id}"
+
                 serialized_key = string_serializer(key_str)
 
                 # value
@@ -270,20 +309,24 @@ class KeyDistributionTester:
         return partition_data
     
     def run_test(self,
-                 distribution_topic_name: str, 
-                 distribution_partition_count: int,
-                 distribution_record_count: int, 
+                 topic_name: str, 
+                 partition_count: int,
+                 record_count: int, 
                  key_pattern: List[str],
                  replication_factor: int, 
-                 data_retention_in_days: int) -> Dict | None:
+                 data_retention_in_days: int,
+                 key_simulation_type: KeySimulationType,
+                 partition_strategy_type: PartitionStrategyType) -> Dict | None:
         """Run the Key Distribution Test.
         Arg(s):
-            distribution_topic_name (str): Kafka topic name.
-            distribution_partition_count (int): Number of partitions for the topic.
-            distribution_record_count (int): Number of records to produce for the test.
+            topic_name (str): Kafka topic name.
+            partition_count (int): Number of partitions for the topic.
+            record_count (int): Number of records to produce for the test.
             key_pattern (List[str]): List of key patterns to use.
             replication_factor (int): Replication factor for the topic.
             data_retention_in_days (int): Data retention period in days.
+            key_simulation_type (KeySimulationType): Type of key simulation to use.
+            partition_strategy_type (PartitionStrategyType): Partitioning strategy to use.
 
         Return(s):
             Dict: Results of the Key Distribution test.
@@ -291,29 +334,29 @@ class KeyDistributionTester:
         """
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
 
-        # Create topic
-        if not create_topic_if_not_exists(self.admin_client, distribution_topic_name, distribution_partition_count, replication_factor, data_retention_in_days):
-            logging.error("Failed to create or recreate topic '%s'. Aborting test.", distribution_topic_name)
+        # Step #1.  Create topic
+        if not create_topic_if_not_exists(self.admin_client, topic_name, partition_count, replication_factor, data_retention_in_days):
+            logging.error("Failed to create or recreate topic '%s'. Aborting test.", topic_name)
             return None
         
-        # Produce records
-        self.__produce_test_records(distribution_topic_name, distribution_record_count, key_pattern)
+        # Step #2.  Produce records with specified key patterns
+        self.__produce_test_records(topic_name, record_count, key_pattern, key_simulation_type)
         
-        # Analyze distribution
+        # Step #3.  Analyze distribution
         producer_partition_record_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
 
-        # Test hash distribution
+        # Step #4.  Test hash distribution
         all_keys = []
         for keys in self.partition_mapping.values():
             all_keys.extend(keys)
         
-        hash_distribution = self.__test_hash_distribution(all_keys, distribution_partition_count)
+        hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
 
         consumer_partition_record_counts = None
         logging.info("=== Consumer Verification ===")
         logging.info("Consuming messages to verify actual distribution...")
 
-        partition_data = self.__consume_and_analyze(distribution_topic_name)
+        partition_data = self.__consume_and_analyze(topic_name)
 
         # Calculate consumer-verified counts
         consumer_partition_record_counts = {

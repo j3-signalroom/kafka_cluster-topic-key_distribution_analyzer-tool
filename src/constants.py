@@ -20,7 +20,7 @@ DEFAULT_USE_CONFLUENT_CLOUD_API_KEY_TO_FETCH_RESOURCE_CREDENTIALS: Final[str] = 
 DEFAULT_TOOL_LOG_FILE: Final[str] = "kafka_cluster-topic-key-distribution-hot-partition-analyzer-tool.log"
 DEFAULT_TOOL_LOG_FORMAT: Final[str] = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
-DEFAULT_DISTRIBUTION_KAFKA_TOPIC_NAME: Final[str] = "_j3.key_distribution_test_topic"
+DEFAULT_KAFKA_TOPIC_NAME: Final[str] = "_j3.key_distribution_test_topic"
 DEFAULT_DATA_SKEW_KAFKA_TOPIC_NAME: Final[str] = "_j3.key_data_skew_test_topic"
 DEFAULT_KAFKA_TOPIC_MINIMUM_PARTITION_COUNT: Final[int] = 6
 DEFAULT_KAFKA_TOPIC_MAXIMUM_PARTITION_COUNT: Final[int] = 128
