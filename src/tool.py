@@ -191,6 +191,8 @@ def main():
                                            placeholder=DEFAULT_KAFKA_TOPIC_NAME,
                                            help="Enter the name of the Kafka topic to produce to.",
                                            disabled=not st.session_state['true_or_false'])
+                button_disabled = not bool(topic_name.strip()) or not st.session_state['true_or_false']
+
                 with st.container(border=True):
                     col1, col2, col3, col4 = st.columns(4)
                     with col1:
@@ -198,6 +200,7 @@ def main():
                                                     placeholder=DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
                                                     help="Enter a list of strings representing the key pattern. Example: ['tenant_id-', 'user_id-', 'object_id-']",
                                                     disabled=not st.session_state['true_or_false'])
+                        button_disabled = button_disabled or not bool(key_pattern.strip())
                     with col2:
                         key_simulation_options = ["Normal", "Less Repetition", "More Repetition", "No Repetition", "Hot Key (data skew)"]
                         selected_key_simulation = st.selectbox(index=0,
@@ -223,7 +226,7 @@ def main():
         if st.button("Run Key Distribution Analysis Tests",
                      help="This will run the Key Distribution Analysis tests.",
                      type="primary",
-                     disabled=not st.session_state['true_or_false']):
+                     disabled=button_disabled):
             st.session_state['true_or_false'] = False
             result, error_message = run_tests(kafka_credentials[selected_kafka_cluster_id],
                                               topic_name=topic_name,
