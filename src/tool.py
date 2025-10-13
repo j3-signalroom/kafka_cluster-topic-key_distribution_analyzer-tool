@@ -6,7 +6,7 @@ import streamlit as st
 import ast
 
 from utilities import setup_logging
-from key_distribution_analyzer import KeyDistributionAnalyzer, KeySimulationType, PartitionStrategyType
+from key_distribution_analyzer import KeyDistributionAnalyzer
 from confluent_credentials import (fetch_confluent_cloud_credential_via_env_file,
                                    fetch_kafka_credentials_via_confluent_cloud_api_key)
 from cc_clients_python_lib.iam_client import IamClient
@@ -70,18 +70,18 @@ def fetch_environment_with_kakfa_credentials() -> tuple[Dict, Dict, Dict, Dict]:
 
 
 def run_tests(kafka_cluster: Dict, 
-              distribution_topic_name: str, 
+              topic_name: str, 
               key_pattern: List[str], 
-              distribution_partition_count: int, 
-              distribution_record_count: int) -> bool:
+              partition_count: int, 
+              record_count: int) -> bool:
     """Run the Key Distribution and Data Skew tests.
 
     Arg(s):
         kafka_cluster (Dict): Kafka cluster information dictionary.
-        distribution_topic_name (str): Kafka producer topic name.
+        topic_name (str): Kafka producer topic name.
         key_pattern (List[str]): List of key patterns to use.
-        distribution_partition_count (int): Number of partitions for the producer topic.
-        distribution_record_count (int): Number of records to produce.
+        partition_count (int): Number of partitions for the producer topic.
+        record_count (int): Number of records to produce.
 
     Return(s):
         bool: True if tests ran successfully, False otherwise.
@@ -93,9 +93,9 @@ def run_tests(kafka_cluster: Dict,
                                               kafka_api_secret=kafka_cluster['sasl.password'])
 
     # Run Key Distribution Test
-    distribution_results = distribution_test.run_test(distribution_topic_name=distribution_topic_name,
-                                                      distribution_partition_count=distribution_partition_count,
-                                                      distribution_record_count=distribution_record_count,
+    distribution_results = distribution_test.run_test(topic_name=topic_name,
+                                                      partition_count=partition_count,
+                                                      record_count=record_count,
                                                       key_pattern=key_pattern,
                                                       replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                                                       data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
@@ -110,12 +110,12 @@ def run_tests(kafka_cluster: Dict,
 
         with col1:
             st.subheader("Producer Key Distribution Test Results")
-            distribution_test.visualize_distribution(distribution_results["producer_partition_record_counts"], f"Actual Distribution - {distribution_topic_name}")
+            distribution_test.visualize_distribution(distribution_results["producer_partition_record_counts"], f"Actual Distribution - {topic_name}")
             st.json(distribution_results["producer_quality_metrics"])
 
         with col2:
             st.subheader("Consumer Key Distribution Test Results")
-            distribution_test.visualize_distribution(distribution_results["consumer_partition_record_counts"], f"Actual Distribution - {distribution_topic_name}")
+            distribution_test.visualize_distribution(distribution_results["consumer_partition_record_counts"], f"Actual Distribution - {topic_name}")
             st.json(distribution_results["consumer_quality_metrics"])
 
     return True
@@ -185,36 +185,42 @@ def main():
         with st.container(border=False):
             test_col1, test_col2 = st.columns(2)
             with test_col1:
-                distribution_topic_name = st.text_input("Enter your topic name for both the producer and consumer:", placeholder=DEFAULT_KAFKA_TOPIC_NAME)
+                topic_name = st.text_input("Enter your topic name for both the producer and consumer:", placeholder=DEFAULT_KAFKA_TOPIC_NAME)
                 with st.container(border=True):
                     col1, col2, col3, col4, col5 = st.columns(5)
                     with col1:
                         key_pattern = st.text_input("Key Pattern:", placeholder=DEFAULT_KAFKA_TOPIC_KEY_PATTERN)
                     with col2:
+                        key_simulation_options = ["Normal", "Less Repetition", "More Repetition", "No Repetition", "Hot Key (Data Skew)", "Hot Key (Bad Key Pattern)"]
                         selected_key_simulation = st.selectbox(index=0,
-                                                            label='Key Simulation:',
-                                                            options=["Less Repetition", "More Repetition", "No Repetition", "Hot Key (Data Skew)", "Hot Key (Bad Key Pattern)"])
+                                                               label='Key Simulation:',
+                                                               options=key_simulation_options)
+                        selected_key_simulation_index = key_simulation_options.index(selected_key_simulation)
                     with col3:
-                        distribution_partition_count = st.number_input("Partition Count:",
-                                                                min_value=DEFAULT_KAFKA_TOPIC_MINIMUM_PARTITION_COUNT,
-                                                                max_value=DEFAULT_KAFKA_TOPIC_MAXIMUM_PARTITION_COUNT,
-                                                                value=DEFAULT_KAFKA_TOPIC_MINIMUM_PARTITION_COUNT,
-                                                                step=1,
-                                                                help="Use arrows or type to change value")                    
+                        partition_count = st.number_input("Partition Count:",
+                                                          min_value=DEFAULT_KAFKA_TOPIC_MINIMUM_PARTITION_COUNT,
+                                                          max_value=DEFAULT_KAFKA_TOPIC_MAXIMUM_PARTITION_COUNT,
+                                                          value=DEFAULT_KAFKA_TOPIC_MINIMUM_PARTITION_COUNT,
+                                                          step=1,
+                                                          help="Use arrows or type to change value")                    
                     with col4:
+                        partition_strategy_options = ["Default (MurmurHash2)", "Round Robin", "Sticky", "Custom", "Range-based Custom"]
                         selected_partition_strategy = st.selectbox(index=0,
-                                                                label='Partition Strategy:',
-                                                                options=["Default (MurmurHash2)", "Round Robin", "Sticky", "Custom", "Range-based Custom"])
+                                                                   label='Partition Strategy:',
+                                                                   options=partition_strategy_options)
+                        selected_partition_strategy_index = partition_strategy_options.index(selected_partition_strategy)
                     with col5:
-                        selected_distribution_record_count = st.selectbox(index=2,
-                                                                        label='Record Count:',
-                                                                        options=["10", "100", "1,000", "10,000", "100,000"])
+                        selected_record_count = st.selectbox(index=2,
+                                                             label='Record Count:',
+                                                             options=["10", "100", "1,000", "10,000", "100,000"])
         if st.button("Run Key Distribution Analyzer Test"):
             result = run_tests(kafka_credentials[selected_kafka_cluster_id],
-                            distribution_topic_name=distribution_topic_name,
-                            key_pattern=ast.literal_eval(key_pattern) if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
-                            distribution_partition_count=distribution_partition_count,
-                            distribution_record_count=int(selected_distribution_record_count.replace(",", "")))
+                               topic_name=topic_name,
+                               key_pattern=ast.literal_eval(key_pattern) if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
+                               partition_count=partition_count,
+                               record_count=int(selected_record_count.replace(",", "")),
+                               key_simulation=selected_key_simulation_index,
+                               partition_strategy=selected_partition_strategy_index)
             if not result:
                 st.warning("The Tool was unable to complete the tests. Please check that you selected the correct Kafka cluster in the region you have access to.")
             else:
