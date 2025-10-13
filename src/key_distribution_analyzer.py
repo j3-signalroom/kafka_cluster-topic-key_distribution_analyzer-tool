@@ -462,9 +462,9 @@ class KeyDistributionAnalyzer:
             horizontal_spacing=0.1
         )
         
-        for idx, (strategy_name, distribution) in enumerate(strategy_results.items()):
-            row = (idx // cols) + 1
-            col = (idx % cols) + 1
+        for index, (strategy_name, distribution) in enumerate(strategy_results.items()):
+            row = (index // cols) + 1
+            col = (index % cols) + 1
             
             partitions = list(range(partition_count))
             counts = [distribution.get(p, 0) for p in partitions]
@@ -503,7 +503,7 @@ class KeyDistributionAnalyzer:
                 # Update subplot title with CV and quality indicator
                 quality = '✅' if cv < 20 else '⚠️'
                 title_text = f'{strategy_name.replace("_", " ").title()}<br>CV: {cv:.1f}% {quality}'
-                fig.layout.annotations[idx].update(text=title_text)
+                fig.layout.annotations[index].update(text=title_text)
             
             # Update axes
             fig.update_xaxes(title_text='Partition', row=row, col=col)
@@ -626,7 +626,7 @@ class KeyDistributionAnalyzer:
         logging.info("Distribution quality: %s", 'Good' if producer_cv < 20 else 'Poor')
 
         # 8. Finalize and return results
-        progress_bar.progress(1.0, text="Analysis complete")
+        progress_bar.progress(1.0, text="Analysis tests are complete")
         return {
             'producer_partition_record_counts': producer_partition_record_counts,
             'key_patterns': key_patterns,
