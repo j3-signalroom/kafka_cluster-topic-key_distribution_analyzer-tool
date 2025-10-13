@@ -21,7 +21,8 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
       - [**1.2.3 Using the AWS Secrets Manager (optional)**](#123-using-the-aws-secrets-manager-optional)
    + [**1.3 Run the Tool**](#13-run-the-tool)
       - [**1.3.1 Did you notice we prefix `uv run` to `streamlit run src/tool.py`?**](#131-did-you-notice-we-prefix-uv-run-to-streamlit-run-srctoolpy)
-      - [**1.3.2 Troubleshoot Connectivity Issues (if any)**](#132-troubleshoot-connectivity-issues-if-any)
+      - [**1.3.2 A word about Streamlit!**](#132-a-word-about-streamlit)
+      - [**1.3.3 Troubleshoot Connectivity Issues (if any)**](#133-troubleshoot-connectivity-issues-if-any)
    + [**1.4 The Results**](#14-the-results)
       - [**1.4.1 Example of Hot Key Data Skew Simulation Results**](#141-example-of-hot-key-data-skew-simulation-results)
       - [**1.4.2 Example of Normal Key Distribution Simulation Results**](#142-example-of-normal-key-distribution-simulation-results)
@@ -194,9 +195,12 @@ Curious to learn more about [Astral](https://astral.sh/)'s `uv`? Check these out
 - Documentation: Learn about [`uv`](https://docs.astral.sh/uv/).
 - Video: [`uv` IS THE FUTURE OF PYTHON PACKING!](https://www.youtube.com/watch?v=8UuW8o4bHbw).
 
-If you have Kafka connectivity issues, you can verify connectivity using the following command:
+#### **1.3.2 A word about Streamlit!**
+[**Streamlit**](https://streamlit.io/) is an open-source Python framework for quickly building and sharing interactive web apps for data science, machine learning, and analytics — all without needing web development experience. What makes Streamlit special is that it turns Python scripts into web apps. You write Python just like you would in a Jupyter notebook, and Streamlit automatically generates a clean, reactive UI that updates in real time as data changes. No wonder why Streamlit is one of the most popular tools for building data apps; moreover, it’s [why Snowflake acquired Streamlit in 2022](https://techcrunch.com/2022/03/02/snowflake-acquires-streamlit-for-800m-to-help-customers-build-data-based-apps/).
 
-#### **1.3.2 Troubleshoot Connectivity Issues (if any)**
+#### **1.3.3 Troubleshoot Connectivity Issues (if any)**
+
+If you have Kafka connectivity issues, you can verify connectivity using the following command:
 
 To verify connectivity to your Kafka cluster, you can use the `kafka-topics.sh` command-line tool.  First, download the Kafka binaries from the [Apache Kafka website](https://kafka.apache.org/downloads) and extract them. Navigate to the `bin` directory of the extracted Kafka folder. Second, create a `client.properties` file with your Kafka credentials:
 
@@ -224,7 +228,7 @@ If the connection is successful, you should see a list of topics in your Kafka c
 Once the tool completes its analysis, it will display a dashboard with visualizations and metrics for each partitioning strategy tested. You will see bar charts showing the distribution of messages across partitions for each strategy, along with summary statistics like standard deviation and coefficient of variation.
 
 #### **1.4.1 Example of Hot Key Data Skew Simulation Results**
-![analyzer-dashboard-hot-key-simulation](.blog/images/analyzer-dashboard-hot-key-simulation.png)
+![analyzer-dashboard-hot-key-data-skew-key-simulation](.blog/images/analyzer-dashboard-hot-key-data-skew-key-simulation.png)
 
 #### **1.4.2 Example of Normal Key Distribution Simulation Results**
 ![analyzer-dashboard-normal-key-simulation](.blog/images/analyzer-dashboard-normal-key-simulation.png)
