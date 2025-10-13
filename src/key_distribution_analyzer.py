@@ -1,7 +1,6 @@
 from enum import IntEnum
 import time
 import json
-import hashlib
 from collections import defaultdict
 from typing import Dict, List, Tuple
 from confluent_kafka import Producer, Consumer
@@ -232,27 +231,28 @@ class KeyDistributionAnalyzer:
                 logging.info("  Partition %d: %d records", partition, count)
 
         return producer_partition_record_counts, key_patterns
-    
-    def __test_hash_distribution(self, keys, partition_count) -> Dict[int, int]:
+
+    def __test_hash_distribution(self, partition_strategy_type: PartitionStrategyType, keys, partition_count) -> Dict[int, int] | None:
         """Test the theoretical hash distribution of keys across partitions.
 
         Arg(s):
+            partition_strategy_type (PartitionStrategyType): Partitioning strategy to use.
             keys (list): List of keys to analyze.
             partition_count (int): Number of partitions.
 
         Return(s):
             Dict[int, int]: Theoretical hash distribution across partitions.
+            None: If partition strategy type is not implemented. 
         """
         logging.info("=== Hash Function Distribution Test ===")
         
-        hash_distribution = defaultdict(int)
-        
-        for key in keys:
-            # Simulate Kafka's default partitioning
-            key_bytes = key.encode('utf-8')
-            hash_value = hashlib.md5(key_bytes).hexdigest()
-            partition = int(hash_value, 16) % partition_count
-            hash_distribution[partition] += 1
+        match partition_strategy_type:
+            case PartitionStrategyType.DEFAULT_MURMURHASH2:
+                logging.info("Using Murmur2 hash strategy (Kafka default)")
+                hash_distribution = self.__murmur2_hash_strategy(keys, partition_count)
+            case _:
+                logging.error("Partition strategy type %s not implemented for hash distribution test", partition_strategy_type)
+                return None
 
         logging.info("Theoretical hash distribution:")
         for partition in sorted(hash_distribution.keys()):
@@ -261,6 +261,45 @@ class KeyDistributionAnalyzer:
             logging.info("Partition %d: %d keys (%.1f%%)", partition, count, percentage)
 
         return hash_distribution
+
+    def __murmur2_hash_strategy(self, keys: list, partition_count: int) -> Dict[int, int]:
+        hash_distribution = defaultdict(int)
+        
+        for key in keys:
+            # Simulate Kafka's default partitioning
+            key_bytes = key.encode('utf-8')
+            hash_value = self.__murmur2_hash(key_bytes)
+            partition = (hash_value & 0x7fffffff) % partition_count
+            hash_distribution[partition] += 1
+
+        return hash_distribution
+
+    def __murmur2_hash(self, key: bytes) -> int:
+        """Compute the Murmur2 hash for a given key.
+
+        Args:
+            key (bytes): The key to hash.
+
+        Returns:
+            int: The Murmur2 hash value.
+        """
+        m = 0x5bd1e995
+        seed = 0x9747b28c
+        h = seed ^ len(key)
+
+        for byte in key:
+            k = byte
+            k = (k * m) & 0xffffffff
+            k ^= k >> 24
+            k = (k * m) & 0xffffffff
+            h = (h * m) & 0xffffffff
+            h ^= k
+
+        h ^= h >> 11
+        h = (h * m) & 0xffffffff
+        h ^= h >> 15
+
+        return h
     
     def __consume_and_analyze(self, topic_name: str):
         """Consume records from the topic and analyze the actual distribution.
@@ -318,7 +357,7 @@ class KeyDistributionAnalyzer:
                  replication_factor: int, 
                  data_retention_in_days: int,
                  key_simulation_type: KeySimulationType,
-                 partition_strategy_type: PartitionStrategyType) -> Dict | None:
+                 partition_strategy_type: PartitionStrategyType) -> Tuple[Dict | None, str]:
         """Run the Key Distribution Test.
         Arg(s):
             st (streamlit): Streamlit instance for visualization.
@@ -332,15 +371,17 @@ class KeyDistributionAnalyzer:
             partition_strategy_type (PartitionStrategyType): Partitioning strategy to use.
 
         Return(s):
-            Dict: Results of the Key Distribution test.
-            None: If topic creation fails.
+            Tuple containing:
+                - Dict: Results of the Key Distribution test.
+                - str: Error message if any.
+                - None: If topic creation fails.
         """
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
 
         progress_bar = st.progress(0, text="Analyzing...  Step 1 of 9: Create topic")
         if not create_topic_if_not_exists(self.admin_client, topic_name, partition_count, replication_factor, data_retention_in_days):
             logging.error("Failed to create or recreate topic '%s'. Aborting test.", topic_name)
-            return None
+            return None, f"Failed to create or recreate topic '{topic_name}'."
 
         progress_bar.progress(11, text="Analyzing...  Step 2 of 9: Produce records with specified key patterns")
         self.__produce_test_records(topic_name, record_count, key_pattern, key_simulation_type)
@@ -354,7 +395,10 @@ class KeyDistributionAnalyzer:
             all_keys.extend(keys)
 
         progress_bar.progress(44, text="Analyzing...  Step 5 of 9: Theoretical hash distribution")
-        hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
+        hash_distribution = self.__test_hash_distribution(partition_strategy_type, all_keys, partition_count)
+        if hash_distribution is None:
+            logging.error("Hash distribution test failed due to unimplemented partition strategy. Aborting test.")
+            return None, "Hash distribution test failed due to unimplemented partition strategy."
 
         progress_bar.progress(55, text="Analyzing...  Step 6 of 9: Consume and analyze")
         consumer_partition_record_counts = None
@@ -434,7 +478,7 @@ class KeyDistributionAnalyzer:
                 'standard_deviation': consumer_std_dev,
                 'coefficient_of_variation': consumer_cv
             }
-        }
+        }, ""
     
     def visualize_distribution(self, partition_record_counts: Dict[int, int], title: str) -> None:
         """Create visualization of partition distribution
