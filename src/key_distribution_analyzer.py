@@ -254,13 +254,7 @@ class KeyDistributionAnalyzer:
                 std_dev = pd.Series(counts).std()
                 mean = pd.Series(counts).mean()
                 cv = (std_dev / mean) * 100 if mean > 0 else 0
-                if cv < 20:
-                    quality = "✅ Good Distribution"
-                elif cv >= 20 and cv < 51:
-                    quality = "⚠️ Moderate Data Skew"
-                else:
-                    quality = "❌ Severe Data Skew"
-                logging.info("CV: %.1f%% - %s", cv, quality)
+                logging.info("CV: %.1f%% - %s", cv, self.__cv_quality_indicator(cv))
         
         return results
     
@@ -507,13 +501,7 @@ class KeyDistributionAnalyzer:
                 )
                 
                 # Update subplot title with CV and quality indicator
-                if cv < 20:
-                    quality = "✅"
-                elif cv >= 20 and cv < 51:
-                    quality = "⚠️"
-                else:
-                    quality = "❌"
-                title_text = f'{strategy_name.replace("_", " ").title()}<br>CV: {cv:.1f}% {quality}'
+                title_text = f'{strategy_name.replace("_", " ").title()}<br>CV: {cv:.1f}% {self.__cv_quality_indicator(cv, show_description=False)}'
                 fig.layout.annotations[index].update(text=title_text)
             
             # Update axes
@@ -544,12 +532,6 @@ class KeyDistributionAnalyzer:
                 avg_count = sum(counts) / len(counts)
                 std_dev = pd.Series(counts).std()
                 cv = (std_dev / avg_count) * 100 if avg_count > 0 else 0
-                if cv < 20:
-                    quality = "✅ Good Distribution"
-                elif cv >= 20 and cv < 51:
-                    quality = "⚠️ Moderate Data Skew"
-                else:
-                    quality = "❌ Severe Data Skew"
                 
                 summary_data.append({
                     'Partition Strategy': strategy_name.replace("_", " ").title(),
@@ -557,7 +539,7 @@ class KeyDistributionAnalyzer:
                     'Average per Partition': f'{avg_count:.1f}',
                     'Standard Deviation': f'{std_dev:.2f}',
                     'Coefficient of Variation (%)': f'{cv:.1f}',
-                    'Quality': quality
+                    'Quality': self.__cv_quality_indicator(cv)
                 })
         
         if summary_data:
@@ -570,6 +552,23 @@ class KeyDistributionAnalyzer:
         st.write("_Generally, a CV less than 20% is considered good, indicating a relatively uniform distribution across partitions. A CV between 20% and 50% suggests that the distribution might be uneven and could benefit from optimization. A CV over 50% indicates severe data skew and requires immediate attention._")
         st.write("**Quality indicators**: ✅ Good Distribution (CV < 20%), ⚠️ Moderate Data Skew (CV ≥ 20% and < 51%), ❌ Severe Data Skew (CV ≥ 51%)")
         st.write("**_Note: These metrics are based on the produced records and may vary with different key patterns, record counts, and partition counts.  They provide insights into how well each partitioning strategy distributes messages across partitions._**")
+
+    def __cv_quality_indicator(self, cv: float, show_description: bool = True) -> str:
+        """Get quality indicator based on Coefficient of Variation (CV).
+
+        Arg(s):
+            cv (float): Coefficient of Variation percentage.
+            show_description (bool): Optional.  Whether to include description in the indicator.  Default is True.
+
+        Return(s):
+            str: Quality indicator based on CV.
+        """
+        if cv < 20:
+            return f"✅{' Good Distribution' if show_description else ''}"
+        elif 20 <= cv < 51:
+            return f"⚠️{' Moderate Data Skew' if show_description else ''}"
+        else:
+            return f"❌{' Severe Data Skew' if show_description else ''}"
 
     def run_test(self,
                  st: streamlit,

@@ -30,7 +30,9 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
       - [**1.4.4 Example of High Cardinality Key Distribution Simulation Results**](#144-example-of-high-cardinality-key-distribution-simulation-results)
       - [**1.4.5 Example of No Repetition Key Distribution Simulation Results**](#145-example-of-no-repetition-key-distribution-simulation-results)
 - [**2.0 How the Tool Works**](#20-how-the-tool-works)
-   + [**2.1 End-to-End Flow**](#21-end-to-end-flow)
+    + [**2.1 The Dashboard**](#21-the-dashboard)
+        - [**2.1.1 The Bar Charts' Red Dashed Line**](#211-the-bar-charts-red-dashed-line)
+    + [**2.2 End-to-End Flow**](#22-end-to-end-flow)
 - [**3.0 Resources**](#30-resources)
     + [**3.1 Confluent Blogs and Documentation**](#31-confluent-blogs-and-documentation)
 <!-- tocstop -->
@@ -247,7 +249,18 @@ Once the tool completes its analysis, it will display a dashboard with visualiza
 
 ## **2.0 How the Tool Works**
 
-### 2.1 **End-to-End Flow**
+### **2.1 The Dashboard**
+
+#### **2.1.1 The Bar Charts' Red Dashed Line**
+![analyzer-dashboard-red-dash-line.png](.blog/images/analyzer-dashboard-red-dash-line.png.png)
+
+In each bar chart, you'll notice a red dashed line is your "**fair distribution baseline**". It answers: "_If records were perfectly distributed, how many would each partition have?_"
+
+- Bars near the line = balanced load ✅
+- Bars far above the line = hot partitions ⚠️
+- Bars far below the line = underutilized partitions 📉
+
+### **2.2 End-to-End Flow**
 The following sequence diagram illustrates the interactions between the user, Streamlit UI, and various components of the tool during its execution:
 ```mermaid
 sequenceDiagram
