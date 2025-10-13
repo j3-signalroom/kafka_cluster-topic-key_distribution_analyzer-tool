@@ -134,9 +134,11 @@ def delete_all_kafka_credentals_created(cc_credential: Dict, kafka_credentials: 
         http_status_code, error_message = iam_client.delete_api_key(api_key=kafka_credential["sasl.username"])
         if http_status_code != HttpStatus.NO_CONTENT:
             logging.warning("FAILED TO DELETE KAFKA CLUSTER API KEY %s FOR KAFKA CLUSTER %s BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'], error_message)
+            progress_bar.progress(min((index + 1) * 100 // len(kafka_credentials), 100), text=f"Failed to delete Kafka Cluster API key {kafka_credential['sasl.username']} for Kafka Cluster {kafka_credential['kafka_cluster_id']}.")
         else:
             logging.info("Kafka Cluster API key %s for Kafka Cluster %s deleted successfully.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'])
-        progress_bar.progress(min((index + 1) * 100 // len(kafka_credentials), 100), text=f"Deleted Kafka Cluster API key {kafka_credential['sasl.username']} for Kafka Cluster {kafka_credential['kafka_cluster_id']}.")
+            progress_bar.progress(min((index + 1) * 100 // len(kafka_credentials), 100), text=f"Deleted Kafka Cluster API key {kafka_credential['sasl.username']} for Kafka Cluster {kafka_credential['kafka_cluster_id']}.")
+        
     progress_bar.progress(100, text="Deletion process completed.")
 
 
