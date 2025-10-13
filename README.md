@@ -32,6 +32,7 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
 - [**2.0 How the Tool Works**](#20-how-the-tool-works)
    + [**2.1 End-to-End Flow**](#21-end-to-end-flow)
 - [**3.0 Resources**](#30-resources)
+    + [**3.1 Confluent Blogs and Documentation**](#31-confluent-blogs-and-documentation)
 <!-- tocstop -->
 
 ## **1.0 To get started**
@@ -403,6 +404,7 @@ sequenceDiagram
 
 ## **3.0 Resources**
 
+### **3.1 Confluent Blogs and Documentation**
 - [The Importance of Standardized Hashing Across Producers](https://www.confluent.io/blog/standardized-hashing-across-java-and-non-java-producers/#:~:text=Description%20*%20%E2%8E%BC%20random:%20random%20distribution.%20*,of%20key%20(NULL%20keys%20are%20randomly%20partitioned))
 
-- [librdkafka Configuration](https://docs.confluent.io/platform/current/clients/librdkafka/html/md_CONFIGURATION.html)
+- [What is Apache Kafka® Partition Strategy?](https://www.confluent.io/learn/kafka-partition-strategy/)
