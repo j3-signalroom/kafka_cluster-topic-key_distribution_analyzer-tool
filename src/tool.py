@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 import logging
 import streamlit as st
 import ast
-import pandas as pd
 
 from utilities import setup_logging
 from key_distribution_analyzer import KeyDistributionAnalyzer
@@ -75,8 +74,7 @@ def run_tests(kafka_cluster: Dict,
               key_pattern: List[str], 
               partition_count: int, 
               record_count: int,
-              key_simulation_type: int,
-              partition_strategy_type: int) -> Tuple[bool, str]:
+              key_simulation_type: int) -> Tuple[bool, str]:
     """Run the Key Distribution and Data Skew tests.
 
     Arg(s):
@@ -86,7 +84,6 @@ def run_tests(kafka_cluster: Dict,
         partition_count (int): Number of partitions for the producer topic.
         record_count (int): Number of records to produce.
         key_simulation_type (int): Key simulation type index.
-        partition_strategy_type (int): Partition strategy type index.
 
     Return(s):
         Tuple containing:
@@ -107,59 +104,11 @@ def run_tests(kafka_cluster: Dict,
                                                                      key_pattern=key_pattern,
                                                                      replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
                                                                      data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
-                                                                     key_simulation_type=key_simulation_type,
-                                                                     partition_strategy_type=partition_strategy_type)
+                                                                     key_simulation_type=key_simulation_type)
     if not distribution_results:
         return False, error_message
 
-    logging.info("Key Distribution Test Results: %s", distribution_results)
-
-    # --- Container with two sections (columns) to display the bar chart and pie chart
-    with st.container(border=True):
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader("Producer Key Distribution Test Results")
-            distribution_test.visualize_distribution(distribution_results["producer_partition_record_counts"], f"Actual Distribution - {topic_name}")
-
-            data = {
-                "Metric": list(distribution_results["producer_quality_metrics"].keys()),
-                "Value": list(distribution_results["producer_quality_metrics"].values())
-            }
-            df = pd.DataFrame(data)
-            st.header("Producer Quality Metrics")
-            st.dataframe(
-                df,
-                column_config={
-                    "Value": st.column_config.NumberColumn(
-                        "Value",
-                        format="%.2f",
-                        help="The value of the metric"
-                    ),
-                },
-                hide_index=True  # Hide the default DataFrame index
-            )
-        with col2:
-            st.subheader("Consumer Key Distribution Test Results")
-            distribution_test.visualize_distribution(distribution_results["consumer_partition_record_counts"], f"Actual Distribution - {topic_name}")
-
-            data = {
-                "Metric": list(distribution_results["consumer_quality_metrics"].keys()),
-                "Value": list(distribution_results["consumer_quality_metrics"].values())
-            }
-            df = pd.DataFrame(data)
-            st.header("Consumer Quality Metrics")
-            st.dataframe(
-                df,
-                column_config={
-                    "Value": st.column_config.NumberColumn(
-                        "Value",
-                        format="%.2f",
-                        help="The value of the metric"
-                    ),
-                },
-                hide_index=True  # Hide the default DataFrame index
-            )
+    logging.info("Key Distribution Analysis Results: %s", distribution_results)
 
     return True, ""
 
@@ -230,7 +179,7 @@ def main():
             with test_col1:
                 topic_name = st.text_input("Enter your topic name for both the producer and consumer:", placeholder=DEFAULT_KAFKA_TOPIC_NAME)
                 with st.container(border=True):
-                    col1, col2, col3, col4, col5 = st.columns(5)
+                    col1, col2, col3, col4 = st.columns(4)
                     with col1:
                         key_pattern = st.text_input("Key Pattern:", placeholder=DEFAULT_KAFKA_TOPIC_KEY_PATTERN)
                     with col2:
@@ -247,23 +196,16 @@ def main():
                                                           step=1,
                                                           help="Use arrows or type to change value")                    
                     with col4:
-                        partition_strategy_options = ["Default (MurmurHash2)"]
-                        selected_partition_strategy = st.selectbox(index=0,
-                                                                   label='Partition Strategy:',
-                                                                   options=partition_strategy_options)
-                        selected_partition_strategy_index = partition_strategy_options.index(selected_partition_strategy)
-                    with col5:
                         selected_record_count = st.selectbox(index=2,
                                                              label='Record Count:',
                                                              options=["10", "100", "1,000", "10,000", "100,000"])
-        if st.button("Run Key Distribution Analyzer Test"):
+        if st.button("Run Key Distribution Analysis"):
             result, error_message = run_tests(kafka_credentials[selected_kafka_cluster_id],
                                               topic_name=topic_name,
                                               key_pattern=ast.literal_eval(key_pattern) if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
                                               partition_count=partition_count,
                                               record_count=int(selected_record_count.replace(",", "")),
-                                              key_simulation_type=selected_key_simulation_index,
-                                              partition_strategy_type=selected_partition_strategy_index)
+                                              key_simulation_type=selected_key_simulation_index)
             if not result:
                 st.error(error_message)
             else:
@@ -274,6 +216,7 @@ def main():
             st.success("Cleanup completed. You can close the Tool now.")
             st.stop()
  
+
 
 
 # Run the main function if this script is executed directly    

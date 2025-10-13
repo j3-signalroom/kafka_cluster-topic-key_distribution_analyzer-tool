@@ -10,6 +10,8 @@ By surfacing patterns of **data skew**, **low-key cardinality**, or **biased has
 
 Use this tool as a **proactive performance lens** on your Kafka topics—ensuring your cluster’s data distribution is as efficient, scalable, and reliable as the workloads it powers.
 
+![dashboard-hot-key-data-skew-sample](.blog/images/dashboard-hot-key-data-skew-sample.png)
+
 **Table of Contents**
 
 <!-- toc -->
