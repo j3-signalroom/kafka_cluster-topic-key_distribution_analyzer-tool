@@ -10,8 +10,6 @@ By surfacing patterns of **data skew**, **low-key cardinality**, or **biased has
 
 Use this tool as a **proactive performance lens** on your Kafka topics—ensuring your cluster’s data distribution is as efficient, scalable, and reliable as the workloads it powers.
 
-![dashboard-hot-key-data-skew-sample](.blog/images/dashboard-hot-key-data-skew-sample.png)
-
 **Table of Contents**
 
 <!-- toc -->
@@ -25,6 +23,11 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
       - [**1.3.1 Did you notice we prefix `uv run` to `streamlit run src/tool.py`?**](#131-did-you-notice-we-prefix-uv-run-to-streamlit-run-srctoolpy)
       - [**1.3.2 Troubleshoot Connectivity Issues (if any)**](#132-troubleshoot-connectivity-issues-if-any)
    + [**1.4 The Results**](#14-the-results)
+      - [**1.4.1 Example of Hot Key Data Skew Simulation Results**](#141-example-of-hot-key-data-skew-simulation-results)
+      - [**1.4.2 Example of Normal Key Distribution Simulation Results**](#142-example-of-normal-key-distribution-simulation-results)
+      - [**1.4.3 Example of Low Cardinality Key Distribution Simulation Results**](#143-example-of-low-cardinality-key-distribution-simulation-results)
+      - [**1.4.4 Example of High Cardinality Key Distribution Simulation Results**](#144-example-of-high-cardinality-key-distribution-simulation-results)
+      - [**1.4.5 Example of No Repetition Key Distribution Simulation Results**](#145-example-of-no-repetition-key-distribution-simulation-results)
 - [**2.0 How the Tool Works**](#20-how-the-tool-works)
 - [**3.0 Resources**](#30-resources)
 <!-- tocstop -->
@@ -216,6 +219,23 @@ Finally, run the following command to list all topics in your Kafka cluster:
 If the connection is successful, you should see a list of topics in your Kafka cluster. If you encounter any errors, double-check your credentials and network connectivity.
 
 ### **1.4 The Results**
+
+Once the tool completes its analysis, it will display a dashboard with visualizations and metrics for each partitioning strategy tested. You will see bar charts showing the distribution of messages across partitions for each strategy, along with summary statistics like standard deviation and coefficient of variation.
+
+#### **1.4.1 Example of Hot Key Data Skew Simulation Results**
+![analyzer-dashboard-hot-key-simulation](.blog/images/analyzer-dashboard-hot-key-simulation.png)
+
+#### **1.4.2 Example of Normal Key Distribution Simulation Results**
+![analyzer-dashboard-normal-key-simulation](.blog/images/analyzer-dashboard-normal-key-simulation.png)
+
+#### **1.4.3 Example of Low Cardinality Key Distribution Simulation Results**
+![analyzer-dashboard-less-repetition-key-simulation](.blog/images/analyzer-dashboard-less-repetition-key-simulation.png)
+
+#### **1.4.4 Example of High Cardinality Key Distribution Simulation Results**
+![analyzer-dashboard-more-repetition-key-simulation](.blog/images/analyzer-dashboard-more-repetition-key-simulation.png)
+
+#### **1.4.5 Example of No Repetition Key Distribution Simulation Results**
+![analyzer-dashboard-no-repetition-key-simulation](.blog/images/analyzer-dashboard-no-repetition-key-simulation.png)
 
 ## **2.0 How the Tool Works**
 

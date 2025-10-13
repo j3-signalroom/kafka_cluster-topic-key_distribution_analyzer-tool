@@ -518,6 +518,13 @@ class KeyDistributionAnalyzer:
         
         # Display in Streamlit
         st.plotly_chart(fig, use_container_width=True)
+
+        # Additional context about MurmurHash2
+        st.write("**MurmurHash2** is a non-cryptographic hash function that *was created by Austin Appleby in 2008*, *produces 32-bit hash values*, *is extremely fast (3-5x faster than MD5)*, *has excellent distribution properties*, and *is used by Kafka, Redis, Cassandra, and many others*.  For more information, see the [MurmurHash Wikipedia page](https://en.wikipedia.org/wiki/MurmurHash).")
+        st.write("**Round Robin** is the simplest partitioning strategy that _ignores the message key completely_, _distributes messages sequentially across partitions_, and _cycles through partitions in order: 0 → 1 → 2 → 3 → ... → 0 (repeats)_. The name **Round Robin** comes from a 16th-century French term meaning 'ribbon round' - signing documents in a circle so no one appears first!")
+        st.write("**Sticky** partitioning is a strategy that _assigns messages to a single partition for a batch_, _sticks to that partition until the batch is full or a timeout occurs_, and then _switches to a new partition for the next batch_. This approach _reduces the overhead of frequent partition switching_ and _improves throughput_ while still providing some level of distribution across partitions.")
+        st.write("**Range-Based Custom** partitioning is a strategy that _assigns messages to partitions based on predefined key ranges_, _sorts unique keys and divides them into ranges corresponding to each partition_, and _ensures that similar keys are grouped together in the same partition_. This approach is useful for scenarios where key locality is important, such as time-series data or ordered processing.")
+        st.write("**Custom** partitioning is a simple strategy that _uses Python's built-in hash function to compute a hash value for each key_, _applies a modulo operation with the number of partitions to determine the target partition_, and _distributes messages based on the computed partition_. This approach is straightforward but may not provide optimal distribution compared to more sophisticated hashing algorithms.")
         
         summary_data = []
         for strategy_name, distribution in strategy_results.items():
@@ -541,6 +548,12 @@ class KeyDistributionAnalyzer:
             st.subheader('Partition Strategy Metrics Summary')
             summary_df = pd.DataFrame(summary_data)
             st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+        st.write("**Standard Deviation (SD)** measures the amount of variation or dispersion in a set of values.  A low SD indicates that the values tend to be close to the mean, while a high SD indicates that the values are spread out over a wider range.")
+        st.write("**Coefficient of Variation (CV)** is a standardized measure of dispersion of a probability distribution or frequency distribution.  It is often expressed as a percentage and is defined as the ratio of the standard deviation to the mean.  A lower CV indicates a more uniform distribution, while a higher CV indicates greater variability.")
+        st.write("_In general, a CV less than 20% is considered good, indicating a relatively uniform distribution across partitions.  A CV greater than 20% suggests that the distribution may be uneven and could benefit from optimization._")
+        st.write("**Quality indicators**: ✅ Good (CV < 20%), ⚠️ Needs Improvement (CV ≥ 20%)")
+        st.write("**_Note: These metrics are based on the produced records and may vary with different key patterns, record counts, and partition counts.  They provide insights into how well each partitioning strategy distributes messages across partitions._**")
 
     def run_test(self,
                  st: streamlit,
