@@ -11,6 +11,7 @@ import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 import logging
+import streamlit
 
 from utilities import setup_logging, create_topic_if_not_exists
 
@@ -309,6 +310,7 @@ class KeyDistributionAnalyzer:
         return partition_data
     
     def run_test(self,
+                 st: streamlit,
                  topic_name: str, 
                  partition_count: int,
                  record_count: int, 
@@ -319,6 +321,7 @@ class KeyDistributionAnalyzer:
                  partition_strategy_type: PartitionStrategyType) -> Dict | None:
         """Run the Key Distribution Test.
         Arg(s):
+            st (streamlit): Streamlit instance for visualization.
             topic_name (str): Kafka topic name.
             partition_count (int): Number of partitions for the topic.
             record_count (int): Number of records to produce for the test.
@@ -334,31 +337,33 @@ class KeyDistributionAnalyzer:
         """
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
 
-        # Step #1.  Create topic
+        progress_bar = st.progress(0, text="Analyzing...  Step 1 of 9: Create topic")
         if not create_topic_if_not_exists(self.admin_client, topic_name, partition_count, replication_factor, data_retention_in_days):
             logging.error("Failed to create or recreate topic '%s'. Aborting test.", topic_name)
             return None
-        
-        # Step #2.  Produce records with specified key patterns
+
+        progress_bar.progress(11, text="Analyzing...  Step 2 of 9: Produce records with specified key patterns")
         self.__produce_test_records(topic_name, record_count, key_pattern, key_simulation_type)
-        
-        # Step #3.  Analyze distribution
+
+        progress_bar.progress(22, text="Analyzing...  Step 3 of 9: Analyze distribution")
         producer_partition_record_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
 
-        # Step #4.  Test hash distribution
+        progress_bar.progress(33, text="Analyzing...  Step 4 of 9: Test hash distribution")
         all_keys = []
         for keys in self.partition_mapping.values():
             all_keys.extend(keys)
-        
+
+        progress_bar.progress(44, text="Analyzing...  Step 5 of 9: Theoretical hash distribution")
         hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
 
+        progress_bar.progress(55, text="Analyzing...  Step 6 of 9: Consume and analyze")
         consumer_partition_record_counts = None
         logging.info("=== Consumer Verification ===")
         logging.info("Consuming messages to verify actual distribution...")
-
         partition_data = self.__consume_and_analyze(topic_name)
 
-        # Calculate consumer-verified counts
+        progress_bar.progress(66, text="Analyzing...  Step 7 of 9: Compare producer vs consumer counts")
+        # Calculate consumer-verified coun1ts
         consumer_partition_record_counts = {
             partition: len(messages) 
             for partition, messages in partition_data.items()
@@ -383,39 +388,37 @@ class KeyDistributionAnalyzer:
             cons_count = consumer_partition_record_counts.get(partition, 0)
             match = "✅" if prod_count == cons_count else "⚠️"
             logging.info("Partition %d: Producer=%d, Consumer=%d %s", partition, prod_count, cons_count, match)
-        
-        # Compare actual vs theoretical
+
+        progress_bar.progress(77, text="Analyzing...  Step 8 of 9: Compare actual vs theoretical distribution")
         logging.info("=== Actual vs Theoretical Distribution ===")
         logging.info("Actual distribution (from producer):")
         for partition in sorted(producer_partition_record_counts.keys()):
             actual = producer_partition_record_counts[partition]
             theoretical = hash_distribution.get(partition, 0)
             logging.info("Partition %d: Actual=%d, Theoretical=%d", partition, actual, theoretical)
-        
-        # Calculate distribution quality metrics
+
+        progress_bar.progress(88, text="Analyzing...  Step 9 of 9: Calculate producer and consumer distribution quality metrics")
         producer_counts = list(producer_partition_record_counts.values())
         producer_std_dev = pd.Series(producer_counts).std()
         producer_mean_count = pd.Series(producer_counts).mean()
         producer_cv = (producer_std_dev / producer_mean_count) * 100  # Coefficient of variation
+        consumer_counts = list(consumer_partition_record_counts.values())
+        consumer_std_dev = pd.Series(consumer_counts).std()
+        consumer_mean_count = pd.Series(consumer_counts).mean()
+        consumer_cv = (consumer_std_dev / consumer_mean_count) * 100  # Coefficient of variation
 
         logging.info("=== Producer Distribution Quality Metrics ===")
         logging.info("Mean records per partition: %.1f", producer_mean_count)
         logging.info("Standard deviation: %.1f", producer_std_dev)
         logging.info("Coefficient of variation: %.1f%%", producer_cv)
         logging.info("Distribution quality: %s", 'Good' if producer_cv < 20 else 'Poor')
-
-        # Calculate distribution quality metrics
-        consumer_counts = list(consumer_partition_record_counts.values())
-        consumer_std_dev = pd.Series(consumer_counts).std()
-        consumer_mean_count = pd.Series(consumer_counts).mean()
-        consumer_cv = (consumer_std_dev / consumer_mean_count) * 100  # Coefficient of variation
-
         logging.info("=== Consumer Distribution Quality Metrics ===")
         logging.info("Mean records per partition: %.1f", consumer_mean_count)
         logging.info("Standard deviation: %.1f", consumer_std_dev)
         logging.info("Coefficient of variation: %.1f%%", consumer_cv)
         logging.info("Distribution quality: %s", 'Good' if consumer_cv < 20 else 'Poor')
 
+        progress_bar.progress(100, text="Analysis complete")
         return {
             'producer_partition_record_counts': producer_partition_record_counts,
             'consumer_partition_record_counts': consumer_partition_record_counts,
