@@ -4,6 +4,12 @@ version = "0.02.00.000"
 description = "Kafka Topic Key Distribution Analyzer Tool"
 readme = "README.md"
 requires-python = ">=3.13"
+authors = [
+    {name = "Jeffrey Jonathan Jennings (J3)", email = "j3@thej3.com"},
+]
+maintainers = [
+    {name = "Jeffrey Jonathan Jennings (J3)", email = "j3@thej3.com"},
+]
 dependencies = [
     "aws-clients-python-lib>=0.10.0.0",
     "cc-clients-python-lib>=0.30.3.0",
