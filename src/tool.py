@@ -73,7 +73,9 @@ def run_tests(kafka_cluster: Dict,
               topic_name: str, 
               key_pattern: List[str], 
               partition_count: int, 
-              record_count: int) -> bool:
+              record_count: int,
+              key_simulation_type: int,
+              partition_strategy_type: int) -> bool:
     """Run the Key Distribution and Data Skew tests.
 
     Arg(s):
@@ -82,6 +84,8 @@ def run_tests(kafka_cluster: Dict,
         key_pattern (List[str]): List of key patterns to use.
         partition_count (int): Number of partitions for the producer topic.
         record_count (int): Number of records to produce.
+        key_simulation_type (int): Key simulation type index.
+        partition_strategy_type (int): Partition strategy type index.
 
     Return(s):
         bool: True if tests ran successfully, False otherwise.
@@ -98,7 +102,9 @@ def run_tests(kafka_cluster: Dict,
                                                       record_count=record_count,
                                                       key_pattern=key_pattern,
                                                       replication_factor=DEFAULT_KAFKA_TOPIC_REPLICATION_FACTOR,
-                                                      data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS)
+                                                      data_retention_in_days=DEFAULT_KAFKA_TOPIC_DATA_RETENTION_IN_DAYS,
+                                                      key_simulation_type=key_simulation_type,
+                                                      partition_strategy_type=partition_strategy_type)
     if not distribution_results:
         return False
 
@@ -191,7 +197,7 @@ def main():
                     with col1:
                         key_pattern = st.text_input("Key Pattern:", placeholder=DEFAULT_KAFKA_TOPIC_KEY_PATTERN)
                     with col2:
-                        key_simulation_options = ["Normal", "Less Repetition", "More Repetition", "No Repetition", "Hot Key (Data Skew)", "Hot Key (Bad Key Pattern)"]
+                        key_simulation_options = ["Normal", "Less Repetition", "More Repetition", "No Repetition", "Hot Key (Data Skew)"]
                         selected_key_simulation = st.selectbox(index=0,
                                                                label='Key Simulation:',
                                                                options=key_simulation_options)
@@ -219,8 +225,8 @@ def main():
                                key_pattern=ast.literal_eval(key_pattern) if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
                                partition_count=partition_count,
                                record_count=int(selected_record_count.replace(",", "")),
-                               key_simulation=selected_key_simulation_index,
-                               partition_strategy=selected_partition_strategy_index)
+                               key_simulation_type=selected_key_simulation_index,
+                               partition_strategy_type=selected_partition_strategy_index)
             if not result:
                 st.warning("The Tool was unable to complete the tests. Please check that you selected the correct Kafka cluster in the region you have access to.")
             else:

@@ -34,7 +34,6 @@ class KeySimulationType(IntEnum):
     MORE_REPETITION = 2
     NO_REPETITION = 3
     HOT_KEY_DATA_SKEW = 4
-    HOT_KEY_BAD_PATTERN = 5
 
 
 # Partition Strategy Types
@@ -119,6 +118,8 @@ class KeyDistributionAnalyzer:
 
     def __produce_test_records(self, topic_name, record_count: int, key_pattern: List[str], key_simulation_type: KeySimulationType) -> None:
         """Produce test records with specific key patterns to the topic.
+        Note: The modulo operations ensure the pattern cycles predictably, making it perfect
+              for testing Kafka's key-based partitioning behavior.
 
         Arg(s):
             topic_name (str): Kafka topic name.
@@ -140,61 +141,24 @@ class KeyDistributionAnalyzer:
             try:
                 match key_simulation_type:
                     case KeySimulationType.NORMAL:
-                        # The modulo operations ensure the pattern cycles predictably, making it perfect
-                        # for testing Kafka's key-based partitioning behavior.
                         key_pattern = key_patterns[id % len(key_patterns)]
                         key_str = f"{key_pattern}{id % 100}"
                     case KeySimulationType.LESS_REPETITION:
-                        # The modulo operations ensure the pattern cycles predictably, making it perfect
-                        # for testing Kafka's key-based partitioning behavior.
                         key_pattern = key_patterns[id % len(key_patterns)]
                         key_str = f"{key_pattern}{id % 1000}"
                     case KeySimulationType.MORE_REPETITION:
-                        # The modulo operations ensure the pattern cycles predictably, making it perfect
-                        # for testing Kafka's key-based partitioning behavior.
                         key_pattern = key_patterns[id % len(key_patterns)]
                         key_str = f"{key_pattern}{id % 10}"
                     case KeySimulationType.NO_REPETITION:
-                        # The modulo operations ensure the pattern cycles predictably, making it perfect
-                        # for testing Kafka's key-based partitioning behavior.
                         key_pattern = key_patterns[id % len(key_patterns)]
                         key_str = f"{key_pattern}{id}"
                     case KeySimulationType.HOT_KEY_DATA_SKEW:
                         # 80% of records use the same key
                         if id < int(record_count * 0.8):
-                            key_str = f"{key_patterns[0]}hot-key"
+                            key_str = "hot-key"
                         else:
-                            # key
-                            key_pattern = key_patterns[id % len(key_patterns)]
+                            key_str = f"cold-key-{id}"
 
-                            # The modulo operations ensure the pattern cycles predictably, making it perfect
-                            # for testing Kafka's key-based partitioning behavior.
-                            key_str = f"{key_pattern}{id % 100}"
-                            
-                            serialized_key = string_serializer(key_str)
-
-                            # value
-                            value_dict = {
-                                "id": id,
-                                "key": key_str,
-                                "timestamp": time.time(),
-                                "data": f"test_record_{id}"
-                            }
-                            serialized_value = json.dumps(value_dict).encode('utf-8')
-
-                            # Produce record
-                            producer.produce(
-                                topic=topic_name,
-                                key=serialized_key,
-                                value=serialized_value,
-                                on_delivery=self.__delivery_report
-                            )
-                    case KeySimulationType.HOT_KEY_BAD_PATTERN:
-                        key_patterns = [f"{pattern}-" for pattern in key_pattern]
-                        # Add a bad key pattern to simulate poor distribution
-                        key_patterns.append("badkey")
-                    case _:
-                        key_patterns = [f"{pattern}-" for pattern in key_pattern]
                 serialized_key = string_serializer(key_str)
 
                 # value
