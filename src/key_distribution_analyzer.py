@@ -3,11 +3,11 @@ import time
 import json
 from collections import defaultdict
 from typing import Dict, List, Tuple
-from confluent_kafka import Producer, Consumer
+from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.admin import AdminClient
-import streamlit as st
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pandas as pd
 import logging
 import streamlit
@@ -34,15 +34,6 @@ class KeySimulationType(IntEnum):
     MORE_REPETITION = 2
     NO_REPETITION = 3
     HOT_KEY_DATA_SKEW = 4
-
-
-# Partition Strategy Types
-class PartitionStrategyType(IntEnum):
-    DEFAULT_MURMURHASH2 = 0
-    ROUND_ROBIN = 1
-    STICKY = 2
-    CUSTOM = 3
-    RANGE_BASED_CUSTOM = 4
 
 
 class KeyDistributionAnalyzer:
@@ -232,6 +223,41 @@ class KeyDistributionAnalyzer:
 
         return producer_partition_record_counts, key_patterns
 
+    def __test_partition_strategies(self, keys, partition_count: int):
+        """Test all Kafka partition strategies"""
+        logging.info("=== Partition Strategy Comparison ===")
+        
+        strategies = {
+            'default_(murmur_hash_2)': self.__murmur2_hash_strategy,
+            'round_robin': self.__round_robin_strategy,
+            'sticky': self.__sticky_strategy,
+            'range_based_custom': self.__range_based_customer_strategy,
+            'custom': self.__custom_strategy
+        }
+        
+        results = {}
+        
+        for strategy_name, strategy_func in strategies.items():
+            logging.info("%s Strategy ---", strategy_name.upper().replace('_', ' '))
+            distribution = strategy_func(keys, partition_count)
+            results[strategy_name] = distribution
+            
+            # Print distribution
+            for partition in sorted(distribution.keys()):
+                count = distribution[partition]
+                percentage = (count / len(keys)) * 100
+                logging.info(f"Partition {partition}: {count} keys ({percentage:.1f}%)")
+            
+            # Calculate quality metrics
+            counts = list(distribution.values())
+            if len(counts) > 0:
+                std_dev = pd.Series(counts).std()
+                mean = pd.Series(counts).mean()
+                cv = (std_dev / mean) * 100 if mean > 0 else 0
+                logging.info("CV: %.1f%% - %s", cv, "✅ Good" if cv < 20 else "⚠️ Poor")
+        
+        return results
+    
     def __test_hash_distribution(self, keys, partition_count) -> Dict[int, int] | None:
         """Test the theoretical hash distribution of keys across partitions.
 
@@ -293,53 +319,220 @@ class KeyDistributionAnalyzer:
 
         return h
     
-    def __consume_and_analyze(self, topic_name: str):
-        """Consume records from the topic and analyze the actual distribution.
-
-        Args:
-            topic_name (str): Kafka topic name.
-            timeout_ms (int, optional): Consumer timeout in milliseconds. Defaults to DEFAULT_TOPIC_CONSUMER_TIMEOUT_MS.
-
-        Returns:
-            Dict[int, List[Dict]]: Consumed records grouped by partition.
-        """
-        consumer = Consumer(self.kafka_consumer_config)
-        consumer.subscribe([topic_name])
+    def __round_robin_strategy(self, keys, partition_count: int):
+        """Round-robin partitioning (used when key is null)"""
+        distribution = defaultdict(int)
         
-        partition_data = defaultdict(list)
-
-        logging.info("Consuming records from topic '%s'...", topic_name)
-
-        try:
-            while True:
-                record = consumer.poll(1)
-
-                if not record:
-                    break
-
-                if record.key() is None and record.value() is None:
-                    logging.info("Reached end of partition %d at offset %d", record.partition(), record.offset())
-                    continue
-                else:
-                    partition_data[record.partition()].append({
-                        'key': record.key().decode('utf-8') if record.key() else None,
-                        'value': json.loads(record.value().decode('utf-8')) if record.value() else None,
-                        'offset': record.offset(),
-                        'timestamp': record.timestamp()
-                    })
-        except Exception as e:
-            logging.error("Consumer timeout or error: %s", e)
-
-        consumer.close()
-
-        # Analyze consumed data
-        logging.info("Consumed data from %d partitions:", len(partition_data))
-        for partition in sorted(partition_data.keys()):
-            records = partition_data[partition]
-            logging.info("Partition %d: %d records", partition, len(records))
-
-        return partition_data
+        for index, key in enumerate(keys):
+            # Ignore the key, just use record order
+            partition = index % partition_count
+            distribution[partition] += 1
+        
+        return distribution
     
+    def __sticky_strategy(self, keys, partition_count: int, batch_size=100, linger_ms=10):
+        """
+        Kafka 4 Uniform Sticky Partitioner (Enhanced)
+        
+        Kafka 4 improvements over 2.4:
+        1. Better initial partition selection (randomized)
+        2. Smarter partition switching (avoids current partition)
+        3. Considers partition availability
+        4. Optimized batch accumulation
+        
+        For null keys only! With keys, uses MurmurHash2.
+        
+        Args:
+            keys: List of keys (ignored - sticky is for null keys)
+            partition_count: Number of partitions
+            batch_size: Messages per batch before switching (default: 100)
+            linger_ms: Simulated linger time (affects batching)
+        """
+        import random
+        
+        distribution = defaultdict(int)
+        
+        # Kafka 4: Random initial partition selection
+        current_partition = random.randint(0, partition_count - 1)
+        messages_in_batch = 0
+        
+        for index in range(len(keys)):
+            # Stick to current partition
+            distribution[current_partition] += 1
+            messages_in_batch += 1
+            
+            # Check if we should switch partitions
+            should_switch = False
+            
+            # Condition 1: Batch size reached
+            if messages_in_batch >= batch_size:
+                should_switch = True
+            
+            # Condition 2: Simulate linger timeout (every N messages)
+            # In real Kafka, this would be time-based
+            elif linger_ms > 0 and index > 0 and index % (batch_size * 2) == 0:
+                should_switch = True
+            
+            if should_switch:
+                # Kafka 4: Smart partition selection
+                current_partition = self.__select_next_partition_kafka4(
+                    current_partition,
+                    partition_count
+                )
+                messages_in_batch = 0
+        
+        return distribution
+    
+    def __select_next_partition_kafka4(self, current_partition: int, partition_count: int):
+        """
+        Kafka 4 partition selection algorithm
+        
+        Improvements over Kafka 2.4:
+        - Avoids recently used partition
+        - Random selection for better load distribution
+        - Handles single partition edge case
+        """
+        import random
+        
+        if partition_count <= 1:
+            return 0
+        
+        # Available partitions (exclude current)
+        available = [p for p in range(partition_count) if p != current_partition]
+        
+        # Kafka 4: Weighted random selection
+        # In production, this considers broker load, but we'll use simple random
+        return random.choice(available)
+    
+    def __range_based_customer_strategy(self, keys, partition_count: int):
+        """Range-based partitioning (partition by key ranges)"""
+        distribution = defaultdict(int)
+        
+        # Sort unique keys and create ranges
+        unique_keys = sorted(set(keys))
+        range_size = len(unique_keys) // partition_count + 1
+        
+        # Create key-to-partition mapping
+        key_to_partition = {}
+        for index, key in enumerate(unique_keys):
+            partition = min(index // range_size, partition_count - 1)
+            key_to_partition[key] = partition
+        
+        # Distribute keys
+        for key in keys:
+            partition = key_to_partition[key]
+            distribution[partition] += 1
+        
+        return distribution
+    
+    def __custom_strategy(self, keys, partition_count: int):
+        """Simple modulo hash (not recommended for production)"""
+        distribution = defaultdict(int)
+        
+        for key in keys:
+            # Simple Python hash with modulo
+            hash_value = hash(key)
+            partition = abs(hash_value) % partition_count
+            distribution[partition] += 1
+        
+        return distribution
+    
+    def __visualize_strategy_comparison(self, st: streamlit, strategy_results, partition_count: int) -> None:
+        """Create side-by-side comparison of all partition strategies using Streamlit"""
+        
+        st.subheader('Kafka Partition Strategy Comparison')
+        
+        # Create subplots with Plotly (better for Streamlit than matplotlib)
+        rows = 2
+        cols = 3
+        fig = make_subplots(
+            rows=rows, 
+            cols=cols,
+            subplot_titles=[name.replace("_", " ").title() for name in strategy_results.keys()],
+            vertical_spacing=0.15,
+            horizontal_spacing=0.1
+        )
+        
+        for idx, (strategy_name, distribution) in enumerate(strategy_results.items()):
+            row = (idx // cols) + 1
+            col = (idx % cols) + 1
+            
+            partitions = list(range(partition_count))
+            counts = [distribution.get(p, 0) for p in partitions]
+            
+            # Add bar chart
+            fig.add_trace(
+                go.Bar(
+                    x=partitions,
+                    y=counts,
+                    name=strategy_name,
+                    text=[f'{int(c)}' if c > 0 else '' for c in counts],
+                    textposition='outside',
+                    marker=dict(color='skyblue', line=dict(color='navy', width=1)),
+                    showlegend=False
+                ),
+                row=row, col=col
+            )
+            
+            # Calculate metrics
+            if len(counts) > 0 and sum(counts) > 0:
+                avg_count = sum(counts) / len(counts)
+                std_dev = pd.Series(counts).std()
+                cv = (std_dev / avg_count) * 100 if avg_count > 0 else 0
+                
+                # Add average line
+                fig.add_hline(
+                    y=avg_count,
+                    line_dash="dash",
+                    line_color="red",
+                    opacity=0.7,
+                    row=row, col=col,
+                    annotation_text=f'Avg: {avg_count:.1f}',
+                    annotation_position="right"
+                )
+                
+                # Update subplot title with CV and quality indicator
+                quality = '✅' if cv < 20 else '⚠️'
+                title_text = f'{strategy_name.replace("_", " ").title()}<br>CV: {cv:.1f}% {quality}'
+                fig.layout.annotations[idx].update(text=title_text)
+            
+            # Update axes
+            fig.update_xaxes(title_text='Partition', row=row, col=col)
+            fig.update_yaxes(title_text='Messages', row=row, col=col, gridcolor='lightgray')
+        
+        # Update layout
+        fig.update_layout(
+            height=800,
+            width=1400,
+            showlegend=False
+        )
+        
+        # Display in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
+        
+        summary_data = []
+        for strategy_name, distribution in strategy_results.items():
+            counts = [distribution.get(p, 0) for p in range(partition_count)]
+            if len(counts) > 0 and sum(counts) > 0:
+                avg_count = sum(counts) / len(counts)
+                std_dev = pd.Series(counts).std()
+                cv = (std_dev / avg_count) * 100 if avg_count > 0 else 0
+                quality = '✅ Good' if cv < 20 else '⚠️ Needs Improvement'
+                
+                summary_data.append({
+                    'Partition Strategy': strategy_name.replace("_", " ").title(),
+                    'Total Records': sum(counts),
+                    'Average per Partition': f'{avg_count:.1f}',
+                    'Standard Deviation': f'{std_dev:.2f}',
+                    'Coefficient of Variation (%)': f'{cv:.1f}',
+                    'Quality': quality
+                })
+        
+        if summary_data:
+            st.subheader('Partition Strategy Metrics Summary')
+            summary_df = pd.DataFrame(summary_data)
+            st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
     def run_test(self,
                  st: streamlit,
                  topic_name: str, 
@@ -348,8 +541,7 @@ class KeyDistributionAnalyzer:
                  key_pattern: List[str],
                  replication_factor: int, 
                  data_retention_in_days: int,
-                 key_simulation_type: KeySimulationType,
-                 partition_strategy_type: PartitionStrategyType) -> Tuple[Dict | None, str]:
+                 key_simulation_type: KeySimulationType) -> Tuple[Dict | None, str]:
         """Run the Key Distribution Test.
         Arg(s):
             st (streamlit): Streamlit instance for visualization.
@@ -360,7 +552,6 @@ class KeyDistributionAnalyzer:
             replication_factor (int): Replication factor for the topic.
             data_retention_in_days (int): Data retention period in days.
             key_simulation_type (KeySimulationType): Type of key simulation to use.
-            partition_strategy_type (PartitionStrategyType): Partitioning strategy to use.
 
         Return(s):
             Tuple containing:
@@ -368,67 +559,41 @@ class KeyDistributionAnalyzer:
                 - str: Error message if any.
                 - None: If topic creation fails.
         """
-        logging.info("=== Kafka Key Distribution Comprehensive Test ===")
+        logging.info("=== Kafka Key Distribution Analysis ===")
 
-        progress_bar = st.progress(0, text="Analyzing...  Create topic")
+        progress_bar = st.progress(0, text="Start Analyzing...")
+
+        # 1. Create or recreate topic if it doesn't exist
+        progress_bar.progress(0.125, text="Analyzing...  Create or recreate topic if it doesn't exist")
         if not create_topic_if_not_exists(self.admin_client, topic_name, partition_count, replication_factor, data_retention_in_days):
             logging.error("Failed to create or recreate topic '%s'. Aborting test.", topic_name)
             return None, f"Failed to create or recreate topic '{topic_name}'."
 
-        progress_bar.progress(11, text="Analyzing...  Produce records with specified key patterns")
+        # 2. Produce test records with specified key patterns
+        progress_bar.progress(0.25, text="Analyzing...  Produce records with specified key patterns")
         self.__produce_test_records(topic_name, record_count, key_pattern, key_simulation_type)
 
-        progress_bar.progress(22, text="Analyzing...  Analyze distribution")
+        # 3. Analyze the distribution of keys across partitions
+        progress_bar.progress(0.375, text="Analyzing...  Analyze the distribution of keys across partitions")
         producer_partition_record_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
 
-        progress_bar.progress(33, text="Analyzing...  Test hash distribution")
+        # 4. Test all partition strategies
+        progress_bar.progress(0.5, text="Analyzing...  Test all partition strategies")
         all_keys = []
         for keys in self.partition_mapping.values():
             all_keys.extend(keys)
+        strategy_results = self.__test_partition_strategies(all_keys, partition_count)
+        self.__visualize_strategy_comparison(st, strategy_results, partition_count)
 
-        if partition_strategy_type == PartitionStrategyType.DEFAULT_MURMURHASH2:
-            progress_bar.progress(44, text="Analyzing...  Theoretical hash distribution")
-            hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
-            if hash_distribution is None:
-                logging.error("Hash distribution test failed due to unimplemented partition strategy. Aborting test.")
-                return None, "Hash distribution test failed due to unimplemented partition strategy."
-        else:
-            hash_distribution = None
-
-        progress_bar.progress(55, text="Analyzing...  Consume and analyze")
-        consumer_partition_record_counts = None
-        logging.info("=== Consumer Verification ===")
-        logging.info("Consuming messages to verify actual distribution...")
-        partition_data = self.__consume_and_analyze(topic_name)
-
-        progress_bar.progress(66, text="Analyzing...  Compare producer vs consumer counts")
-        # Calculate consumer-verified coun1ts
-        consumer_partition_record_counts = {
-            partition: len(messages) 
-            for partition, messages in partition_data.items()
-        }
+        # 5. Test theoretical hash distribution
+        progress_bar.progress(0.625, text="Analyzing...  Theoretical hash distribution")
+        hash_distribution = self.__test_hash_distribution(all_keys, partition_count)
+        if hash_distribution is None:
+            logging.error("Hash distribution test failed due to unimplemented partition strategy. Aborting test.")
+            return None, "Hash distribution test failed due to unimplemented partition strategy."
         
-        # Compare producer vs consumer counts
-        logging.info("=== Producer vs Consumer Comparison ===")
-        total_producer = sum(producer_partition_record_counts.values())
-        total_consumer = sum(consumer_partition_record_counts.values())
-
-        logging.info("Producer reported: %d messages", total_producer)
-        logging.info("Consumer verified: %d messages", total_consumer)
-        
-        if total_producer == total_consumer:
-            logging.info("✅ All messages accounted for")
-        else:
-            logging.warning("⚠️ Mismatch: %d messages missing", total_producer - total_consumer)
-
-        logging.info("Per-partition comparison:")
-        for partition in sorted(producer_partition_record_counts.keys()):
-            prod_count = producer_partition_record_counts.get(partition, 0)
-            cons_count = consumer_partition_record_counts.get(partition, 0)
-            match = "✅" if prod_count == cons_count else "⚠️"
-            logging.info("Partition %d: Producer=%d, Consumer=%d %s", partition, prod_count, cons_count, match)
-
-        progress_bar.progress(77, text="Analyzing...  Compare actual vs theoretical distribution")
+        # 6. Compare actual vs theoretical distribution
+        progress_bar.progress(0.75, text="Analyzing...  Compare actual vs theoretical distribution")
         logging.info("=== Actual vs Theoretical Distribution ===")
         logging.info("Actual distribution (from producer):")
         for partition in sorted(producer_partition_record_counts.keys()):
@@ -436,94 +601,28 @@ class KeyDistributionAnalyzer:
             theoretical = hash_distribution.get(partition, 0)
             logging.info("Partition %d: Actual=%d, Theoretical=%d", partition, actual, theoretical)
 
-        progress_bar.progress(88, text="Analyzing...  Calculate producer and consumer distribution quality metrics")
+        # 7. Calculate distribution quality metrics
+        progress_bar.progress(0.875, text="Analyzing...  Calculate distribution quality metrics")
         producer_counts = list(producer_partition_record_counts.values())
         producer_std_dev = pd.Series(producer_counts).std()
         producer_mean_count = pd.Series(producer_counts).mean()
         producer_cv = (producer_std_dev / producer_mean_count) * 100  # Coefficient of variation
-        consumer_counts = list(consumer_partition_record_counts.values())
-        consumer_std_dev = pd.Series(consumer_counts).std()
-        consumer_mean_count = pd.Series(consumer_counts).mean()
-        consumer_cv = (consumer_std_dev / consumer_mean_count) * 100  # Coefficient of variation
 
         logging.info("=== Producer Distribution Quality Metrics ===")
         logging.info("Mean records per partition: %.1f", producer_mean_count)
         logging.info("Standard deviation: %.1f", producer_std_dev)
         logging.info("Coefficient of variation: %.1f%%", producer_cv)
         logging.info("Distribution quality: %s", 'Good' if producer_cv < 20 else 'Poor')
-        logging.info("=== Consumer Distribution Quality Metrics ===")
-        logging.info("Mean records per partition: %.1f", consumer_mean_count)
-        logging.info("Standard deviation: %.1f", consumer_std_dev)
-        logging.info("Coefficient of variation: %.1f%%", consumer_cv)
-        logging.info("Distribution quality: %s", 'Good' if consumer_cv < 20 else 'Poor')
 
-        progress_bar.progress(100, text="Analysis complete")
+        # 8. Finalize and return results
+        progress_bar.progress(1.0, text="Analysis complete")
         return {
             'producer_partition_record_counts': producer_partition_record_counts,
-            'consumer_partition_record_counts': consumer_partition_record_counts,
             'key_patterns': key_patterns,
             'hash_distribution': hash_distribution,
             'producer_quality_metrics': {
                 'mean': producer_mean_count,
                 'standard_deviation': producer_std_dev,
                 'coefficient_of_variation': producer_cv
-            },
-            'consumer_quality_metrics': {
-                'mean': consumer_mean_count,
-                'standard_deviation': consumer_std_dev,
-                'coefficient_of_variation': consumer_cv
             }
         }, ""
-    
-    def visualize_distribution(self, partition_record_counts: Dict[int, int], title: str) -> None:
-        """Create visualization of partition distribution
-
-        Args:
-            partition_record_counts (Dict[int, int]): Dictionary with partition numbers as keys and record counts as values.
-            title (str): Title of the plot.
-
-        Return(s):
-            None
-        """
-        partitions = list(partition_record_counts.keys())
-        counts = list(partition_record_counts.values())
-
-        if not partitions or not counts:
-            logging.warning("No data available to visualize.")
-        else:
-            avg_count = sum(counts) / len(counts)
-            
-            # Create Plotly figure
-            fig = go.Figure()
-            
-            # Add bar chart
-            fig.add_trace(go.Bar(
-                x=partitions,
-                y=counts,
-                text=counts,
-                textposition='outside',
-                marker_color='skyblue',
-                marker_line_color='navy',
-                marker_line_width=1.5
-            ))
-            
-            # Add average line
-            fig.add_hline(
-                y=avg_count,
-                line_dash="dash",
-                line_color="red",
-                annotation_text=f"Average: {avg_count:.1f}",
-                annotation_position="right"
-            )
-            
-            # Update layout
-            fig.update_layout(
-                title=title,
-                xaxis_title="Partition",
-                yaxis_title="Number of Records",
-                showlegend=False,
-                height=500
-            )
-            
-            # Display in Streamlit
-            st.plotly_chart(fig, use_container_width=True)
