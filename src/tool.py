@@ -98,7 +98,8 @@ def run_tests(kafka_cluster: Dict,
                                               kafka_api_secret=kafka_cluster['sasl.password'])
 
     # Run Key Distribution Test
-    distribution_results = distribution_test.run_test(topic_name=topic_name,
+    distribution_results = distribution_test.run_test(st,
+                                                      topic_name=topic_name,
                                                       partition_count=partition_count,
                                                       record_count=record_count,
                                                       key_pattern=key_pattern,
