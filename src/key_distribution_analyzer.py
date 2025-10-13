@@ -254,7 +254,13 @@ class KeyDistributionAnalyzer:
                 std_dev = pd.Series(counts).std()
                 mean = pd.Series(counts).mean()
                 cv = (std_dev / mean) * 100 if mean > 0 else 0
-                logging.info("CV: %.1f%% - %s", cv, "✅ Good" if cv < 20 else "⚠️ Poor")
+                if cv < 20:
+                    quality = "✅ Good Distribution"
+                elif cv >= 20 and cv < 51:
+                    quality = "⚠️ Moderate Data Skew"
+                else:
+                    quality = "❌ Severe Data Skew"
+                logging.info("CV: %.1f%% - %s", cv, quality)
         
         return results
     
@@ -501,7 +507,12 @@ class KeyDistributionAnalyzer:
                 )
                 
                 # Update subplot title with CV and quality indicator
-                quality = '✅' if cv < 20 else '⚠️'
+                if cv < 20:
+                    quality = "✅"
+                elif cv >= 20 and cv < 51:
+                    quality = "⚠️"
+                else:
+                    quality = "❌"
                 title_text = f'{strategy_name.replace("_", " ").title()}<br>CV: {cv:.1f}% {quality}'
                 fig.layout.annotations[index].update(text=title_text)
             
@@ -519,7 +530,7 @@ class KeyDistributionAnalyzer:
         # Display in Streamlit
         st.plotly_chart(fig, use_container_width=True)
 
-        # Additional context about MurmurHash2
+        # Partition strategy descriptions
         st.write("**MurmurHash2** is a non-cryptographic hash function that *was created by Austin Appleby in 2008*, *produces 32-bit hash values*, *is extremely fast (3-5x faster than MD5)*, *has excellent distribution properties*, and *is used by Kafka, Redis, Cassandra, and many others*.  For more information, see the [MurmurHash Wikipedia page](https://en.wikipedia.org/wiki/MurmurHash).")
         st.write("**Round Robin** is the simplest partitioning strategy that _ignores the message key completely_, _distributes messages sequentially across partitions_, and _cycles through partitions in order: 0 → 1 → 2 → 3 → ... → 0 (repeats)_. The name **Round Robin** comes from a 16th-century French term meaning 'ribbon round' - signing documents in a circle so no one appears first!")
         st.write("**Sticky** partitioning is a strategy that _assigns messages to a single partition for a batch_, _sticks to that partition until the batch is full or a timeout occurs_, and then _switches to a new partition for the next batch_. This approach _reduces the overhead of frequent partition switching_ and _improves throughput_ while still providing some level of distribution across partitions.")
@@ -533,7 +544,12 @@ class KeyDistributionAnalyzer:
                 avg_count = sum(counts) / len(counts)
                 std_dev = pd.Series(counts).std()
                 cv = (std_dev / avg_count) * 100 if avg_count > 0 else 0
-                quality = '✅ Good' if cv < 20 else '⚠️ Needs Improvement'
+                if cv < 20:
+                    quality = "✅ Good Distribution"
+                elif cv >= 20 and cv < 51:
+                    quality = "⚠️ Moderate Data Skew"
+                else:
+                    quality = "❌ Severe Data Skew"
                 
                 summary_data.append({
                     'Partition Strategy': strategy_name.replace("_", " ").title(),
@@ -551,8 +567,8 @@ class KeyDistributionAnalyzer:
 
         st.write("**Standard Deviation (SD)** measures the amount of variation or dispersion in a set of values.  A low SD indicates that the values tend to be close to the mean, while a high SD indicates that the values are spread out over a wider range.")
         st.write("**Coefficient of Variation (CV)** is a standardized measure of dispersion of a probability distribution or frequency distribution.  It is often expressed as a percentage and is defined as the ratio of the standard deviation to the mean.  A lower CV indicates a more uniform distribution, while a higher CV indicates greater variability.")
-        st.write("_In general, a CV less than 20% is considered good, indicating a relatively uniform distribution across partitions.  A CV greater than 20% suggests that the distribution may be uneven and could benefit from optimization._")
-        st.write("**Quality indicators**: ✅ Good (CV < 20%), ⚠️ Needs Improvement (CV ≥ 20%)")
+        st.write("_Generally, a CV less than 20% is considered good, indicating a relatively uniform distribution across partitions. A CV between 20% and 50% suggests that the distribution might be uneven and could benefit from optimization. A CV over 50% indicates severe data skew and requires immediate attention._")
+        st.write("**Quality indicators**: ✅ Good Distribution (CV < 20%), ⚠️ Moderate Data Skew (CV ≥ 20% and < 51%), ❌ Severe Data Skew (CV ≥ 51%)")
         st.write("**_Note: These metrics are based on the produced records and may vary with different key patterns, record counts, and partition counts.  They provide insights into how well each partitioning strategy distributes messages across partitions._**")
 
     def run_test(self,

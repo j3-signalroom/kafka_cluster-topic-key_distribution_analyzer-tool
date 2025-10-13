@@ -197,7 +197,9 @@ Curious to learn more about [Astral](https://astral.sh/)'s `uv`? Check these out
 - Video: [`uv` IS THE FUTURE OF PYTHON PACKING!](https://www.youtube.com/watch?v=8UuW8o4bHbw).
 
 #### **1.3.2 A word about Streamlit!**
-[**Streamlit**](https://streamlit.io/) is an open-source Python framework for quickly building and sharing interactive web apps for data science, machine learning, and analytics — all without needing web development experience. What makes Streamlit special is that it turns Python scripts into web apps. You write Python just like you would in a Jupyter notebook, and Streamlit automatically generates a clean, reactive UI that updates in real time as data changes. No wonder why Streamlit is one of the most popular tools for building data apps; moreover, it’s [why Snowflake acquired Streamlit in 2022](https://techcrunch.com/2022/03/02/snowflake-acquires-streamlit-for-800m-to-help-customers-build-data-based-apps/).
+[**Streamlit**](https://streamlit.io/) is an open-source Python framework for quickly building and sharing interactive web apps for data science, machine learning, and analytics — all without needing web development experience. What makes Streamlit special is that it turns Python scripts into web apps. You write Python just like you would in a Jupyter notebook, and Streamlit automatically generates a clean, reactive UI that updates in real time as data changes. No wonder why Streamlit is one of the most popular tools for building data apps; moreover, it’s [why Snowflake acquired Streamlit in 2022](https://techcrunch.com/2022/03/02/snowflake-acquires-streamlit-for-800m-to-help-customers-build-data-based-apps/)! 😉
+
+> When you run the command `uv run streamlit run src/tool.py`, Streamlit will start a local web server and provide you with a URL (usually `http://localhost:8501`) to access the tool's user interface in your web browser. You can interact with the tool through this web interface, configure settings, and view results.
 
 #### **1.3.3 Troubleshoot Connectivity Issues (if any)**
 
