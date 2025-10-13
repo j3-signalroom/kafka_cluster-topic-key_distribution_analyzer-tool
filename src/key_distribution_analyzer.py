@@ -232,11 +232,10 @@ class KeyDistributionAnalyzer:
 
         return producer_partition_record_counts, key_patterns
 
-    def __test_hash_distribution(self, partition_strategy_type: PartitionStrategyType, keys, partition_count) -> Dict[int, int] | None:
+    def __test_hash_distribution(self, keys, partition_count) -> Dict[int, int] | None:
         """Test the theoretical hash distribution of keys across partitions.
 
         Arg(s):
-            partition_strategy_type (PartitionStrategyType): Partitioning strategy to use.
             keys (list): List of keys to analyze.
             partition_count (int): Number of partitions.
 
@@ -245,14 +244,7 @@ class KeyDistributionAnalyzer:
             None: If partition strategy type is not implemented. 
         """
         logging.info("=== Hash Function Distribution Test ===")
-        
-        match partition_strategy_type:
-            case PartitionStrategyType.DEFAULT_MURMURHASH2:
-                logging.info("Using Murmur2 hash strategy (Kafka default)")
-                hash_distribution = self.__murmur2_hash_strategy(keys, partition_count)
-            case _:
-                logging.error("Partition strategy type %s not implemented for hash distribution test", partition_strategy_type)
-                return None
+        hash_distribution = self.__murmur2_hash_strategy(keys, partition_count)
 
         logging.info("Theoretical hash distribution:")
         for partition in sorted(hash_distribution.keys()):
@@ -378,35 +370,38 @@ class KeyDistributionAnalyzer:
         """
         logging.info("=== Kafka Key Distribution Comprehensive Test ===")
 
-        progress_bar = st.progress(0, text="Analyzing...  Step 1 of 9: Create topic")
+        progress_bar = st.progress(0, text="Analyzing...  Create topic")
         if not create_topic_if_not_exists(self.admin_client, topic_name, partition_count, replication_factor, data_retention_in_days):
             logging.error("Failed to create or recreate topic '%s'. Aborting test.", topic_name)
             return None, f"Failed to create or recreate topic '{topic_name}'."
 
-        progress_bar.progress(11, text="Analyzing...  Step 2 of 9: Produce records with specified key patterns")
+        progress_bar.progress(11, text="Analyzing...  Produce records with specified key patterns")
         self.__produce_test_records(topic_name, record_count, key_pattern, key_simulation_type)
 
-        progress_bar.progress(22, text="Analyzing...  Step 3 of 9: Analyze distribution")
+        progress_bar.progress(22, text="Analyzing...  Analyze distribution")
         producer_partition_record_counts, key_patterns = self.__analyze_distribution(self.partition_mapping)
 
-        progress_bar.progress(33, text="Analyzing...  Step 4 of 9: Test hash distribution")
+        progress_bar.progress(33, text="Analyzing...  Test hash distribution")
         all_keys = []
         for keys in self.partition_mapping.values():
             all_keys.extend(keys)
 
-        progress_bar.progress(44, text="Analyzing...  Step 5 of 9: Theoretical hash distribution")
-        hash_distribution = self.__test_hash_distribution(partition_strategy_type, all_keys, partition_count)
-        if hash_distribution is None:
-            logging.error("Hash distribution test failed due to unimplemented partition strategy. Aborting test.")
-            return None, "Hash distribution test failed due to unimplemented partition strategy."
+        if partition_strategy_type == PartitionStrategyType.DEFAULT_MURMURHASH2:
+            progress_bar.progress(44, text="Analyzing...  Theoretical hash distribution")
+            hash_distribution = self.__test_hash_distribution(partition_strategy_type, all_keys, partition_count)
+            if hash_distribution is None:
+                logging.error("Hash distribution test failed due to unimplemented partition strategy. Aborting test.")
+                return None, "Hash distribution test failed due to unimplemented partition strategy."
+        else:
+            hash_distribution = None
 
-        progress_bar.progress(55, text="Analyzing...  Step 6 of 9: Consume and analyze")
+        progress_bar.progress(55, text="Analyzing...  Consume and analyze")
         consumer_partition_record_counts = None
         logging.info("=== Consumer Verification ===")
         logging.info("Consuming messages to verify actual distribution...")
         partition_data = self.__consume_and_analyze(topic_name)
 
-        progress_bar.progress(66, text="Analyzing...  Step 7 of 9: Compare producer vs consumer counts")
+        progress_bar.progress(66, text="Analyzing...  Compare producer vs consumer counts")
         # Calculate consumer-verified coun1ts
         consumer_partition_record_counts = {
             partition: len(messages) 
@@ -433,7 +428,7 @@ class KeyDistributionAnalyzer:
             match = "✅" if prod_count == cons_count else "⚠️"
             logging.info("Partition %d: Producer=%d, Consumer=%d %s", partition, prod_count, cons_count, match)
 
-        progress_bar.progress(77, text="Analyzing...  Step 8 of 9: Compare actual vs theoretical distribution")
+        progress_bar.progress(77, text="Analyzing...  Compare actual vs theoretical distribution")
         logging.info("=== Actual vs Theoretical Distribution ===")
         logging.info("Actual distribution (from producer):")
         for partition in sorted(producer_partition_record_counts.keys()):
@@ -441,7 +436,7 @@ class KeyDistributionAnalyzer:
             theoretical = hash_distribution.get(partition, 0)
             logging.info("Partition %d: Actual=%d, Theoretical=%d", partition, actual, theoretical)
 
-        progress_bar.progress(88, text="Analyzing...  Step 9 of 9: Calculate producer and consumer distribution quality metrics")
+        progress_bar.progress(88, text="Analyzing...  Calculate producer and consumer distribution quality metrics")
         producer_counts = list(producer_partition_record_counts.values())
         producer_std_dev = pd.Series(producer_counts).std()
         producer_mean_count = pd.Series(producer_counts).mean()
