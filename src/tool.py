@@ -247,7 +247,7 @@ def main():
                                                           step=1,
                                                           help="Use arrows or type to change value")                    
                     with col4:
-                        partition_strategy_options = ["Default (MurmurHash2)", "Round Robin", "Sticky", "Custom", "Range-based Custom"]
+                        partition_strategy_options = ["Default (MurmurHash2)"]
                         selected_partition_strategy = st.selectbox(index=0,
                                                                    label='Partition Strategy:',
                                                                    options=partition_strategy_options)
