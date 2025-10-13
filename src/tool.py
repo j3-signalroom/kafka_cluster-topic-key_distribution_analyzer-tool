@@ -136,10 +136,13 @@ def delete_all_kafka_credentals_created(cc_credential: Dict, kafka_credentials: 
         else:
             logging.info("Kafka Cluster API key %s for Kafka Cluster %s deleted successfully.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'])
 
+
 def main():
     """Main tool entry point."""
 
     st.set_page_config(layout="wide")
+    if 'true_or_false' not in st.session_state:
+        st.session_state['true_or_false'] = True
 
     # --- The title and subtitle of the tool
     st.title("Key Distribution Analyzer Tool Dashboard")
@@ -166,30 +169,42 @@ def main():
                         selected_environment = st.selectbox(
                             index=0, 
                             label='Choose the Environment:',
-                            options=[environment.get("display_name") for environment in environments.values()]
+                            options=[environment.get("display_name") for environment in environments.values()],
+                            help="Select the Confluent Environment that contains the Kafka Cluster you want to use for the tests.",
+                            disabled=not st.session_state['true_or_false']
                         )
                         selected_environment_id = {environment.get("id") for environment in environments.values() if environment.get("display_name") == selected_environment}
                     with col2:
                         selected_kafka_cluster = st.selectbox(
                             index=0,
                             label=f"Choose the {selected_environment}'s Kafka Cluster:",
-                            options=[kafka_cluster.get("display_name") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("environment_id") in selected_environment_id]
+                            options=[kafka_cluster.get("display_name") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("environment_id") in selected_environment_id],
+                            help="Select the Kafka Cluster you want to use for the tests.",
+                            disabled=not st.session_state['true_or_false']
                         )
                         selected_kafka_cluster_id = list({kafka_cluster.get("id") for kafka_cluster in kafka_clusters.values() if kafka_cluster.get("display_name") == selected_kafka_cluster})[0]
 
         with st.container(border=False):
             test_col1, test_col2 = st.columns(2)
             with test_col1:
-                topic_name = st.text_input("Enter your topic name for both the producer and consumer:", placeholder=DEFAULT_KAFKA_TOPIC_NAME)
+                topic_name = st.text_input("Enter your Kafka Producer topic name:", 
+                                           placeholder=DEFAULT_KAFKA_TOPIC_NAME,
+                                           help="Enter the name of the Kafka topic to produce to.",
+                                           disabled=not st.session_state['true_or_false'])
                 with st.container(border=True):
                     col1, col2, col3, col4 = st.columns(4)
                     with col1:
-                        key_pattern = st.text_input("Key Pattern:", placeholder=DEFAULT_KAFKA_TOPIC_KEY_PATTERN)
+                        key_pattern = st.text_input("Key Pattern:", 
+                                                    placeholder=DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
+                                                    help="Enter a list of strings representing the key pattern. Example: ['tenant_id-', 'user_id-', 'object_id-']",
+                                                    disabled=not st.session_state['true_or_false'])
                     with col2:
                         key_simulation_options = ["Normal", "Less Repetition", "More Repetition", "No Repetition", "Hot Key (data skew)"]
                         selected_key_simulation = st.selectbox(index=0,
                                                                label='Key Simulation:',
-                                                               options=key_simulation_options)
+                                                               options=key_simulation_options,
+                                                               help="Select the key simulation strategy to use.",
+                                                               disabled=not st.session_state['true_or_false'])
                         selected_key_simulation_index = key_simulation_options.index(selected_key_simulation)
                     with col3:
                         partition_count = st.number_input("Partition Count:",
@@ -197,12 +212,19 @@ def main():
                                                           max_value=DEFAULT_KAFKA_TOPIC_MAXIMUM_PARTITION_COUNT,
                                                           value=DEFAULT_KAFKA_TOPIC_MINIMUM_PARTITION_COUNT,
                                                           step=1,
-                                                          help="Use arrows or type to change value")                    
+                                                          help="Use arrows or type to change value",
+                                                          disabled=not st.session_state['true_or_false'])                    
                     with col4:
                         selected_record_count = st.selectbox(index=2,
                                                              label='Record Count:',
-                                                             options=["10", "100", "1,000", "10,000", "100,000"])
-        if st.button("Run Key Distribution Analysis"):
+                                                             options=["10", "100", "1,000", "10,000", "100,000"],
+                                                             help="Select the number of records to produce.",
+                                                             disabled=not st.session_state['true_or_false'])
+        if st.button("Run Key Distribution Analysis Tests",
+                     help="This will run the Key Distribution Analysis tests.",
+                     type="primary",
+                     disabled=not st.session_state['true_or_false']):
+            st.session_state['true_or_false'] = False
             result, error_message = run_tests(kafka_credentials[selected_kafka_cluster_id],
                                               topic_name=topic_name,
                                               key_pattern=ast.literal_eval(key_pattern) if key_pattern else DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
@@ -210,14 +232,20 @@ def main():
                                               record_count=int(selected_record_count.replace(",", "")),
                                               key_simulation_name=selected_key_simulation,
                                               key_simulation_type=selected_key_simulation_index)
+            st.session_state['true_or_false'] = True
             if not result:
                 st.error(error_message)
             else:
                 st.balloons()
 
-        if st.button("Cleanup Resources"):
+        if st.button("Cleanup Resources", 
+                     help="This will delete all the Kafka Cluster API keys created for each Kafka Cluster instance.", 
+                     type="secondary", 
+                     disabled=not st.session_state['true_or_false']):
+            st.session_state['true_or_false'] = False
             delete_all_kafka_credentals_created(cc_credential, kafka_credentials)
             st.success("Cleanup completed. You can close the Tool now.")
+            st.session_state['true_or_false'] = True
             st.stop()
  
 
