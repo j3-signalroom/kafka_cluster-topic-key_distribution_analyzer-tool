@@ -8,6 +8,9 @@ The format is base on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), 
 ### Added
 - Issue [#104](https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution_analyzer-tool/issues/104).
 
+### Changed
+- Issue [#103](https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution_analyzer-tool/issues/103).
+
 ## [0.01.02.000] - 2025-10-13
 ### Added
 - Issue [#100](https://github.com/j3-signalroom/kafka_cluster-topic-key_distribution_analyzer-tool/issues/100).
