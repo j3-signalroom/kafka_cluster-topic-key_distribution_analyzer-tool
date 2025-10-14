@@ -31,7 +31,9 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
       - [**1.4.5 Example of No Repetition Key Distribution Simulation Results**](#145-example-of-no-repetition-key-distribution-simulation-results)
 - [**2.0 How the Tool Works**](#20-how-the-tool-works)
     + [**2.1 The Dashboard**](#21-the-dashboard)
-        - [**2.1.1 The Bar Charts' Red Dashed Line**](#211-the-bar-charts-red-dashed-line)
+        - [**2.1.1 `Key Pattern`**](#211-key-pattern)
+        - [**2.1.2 `Key Simulation`**](#212-key-simulation)
+        - [**2.1.3 The Bar Charts**](#213-the-bar-charts)
     + [**2.2 End-to-End Flow**](#22-end-to-end-flow)
 - [**3.0 Resources**](#30-resources)
     + [**3.1 Confluent Blogs and Documentation**](#31-confluent-blogs-and-documentation)
@@ -251,14 +253,52 @@ Once the tool completes its analysis, it will display a dashboard with visualiza
 
 ### **2.1 The Dashboard**
 
-#### **2.1.1 The Bar Charts' Red Dashed Line**
-![analyzer-dashboard-red-dash-line.png](.blog/images/analyzer-dashboard-red-dash-line.png.png)
+The dashboard provides a visual representation of how different partitioning strategies distribute messages across partitions. Each bar chart corresponds to a specific partitioning strategy, such as Murmur2 Hash, Round Robin, Sticky, Range-Based Custom, and Custom strategies.
 
-In each bar chart, you'll notice a red dashed line is your "**fair distribution baseline**". It answers: "_If records were perfectly distributed, how many would each partition have?_"
+#### **2.1.1 `Key Pattern`**
 
-- Bars near the line = balanced load ✅
-- Bars far above the line = hot partitions ⚠️
-- Bars far below the line = underutilized partitions 📉
+![analyzer-dashboard-key-patterns](.blog/images/analyzer-dashboard-key-patterns.png)
+
+`Key Pattern` is a list of string pattern prefixes (i.e., `tenant_id-`, `user_id-`, `object_id-`) used to generate record keys for testing key distribution across Kafka partitions. Each pattern represents a different strategy for creating keys, which can influence how records are distributed when produced to a Kafka topic.  It helps you understand:
+
+1. Which key patterns lead to more balanced partition distribution.
+2. How different key simulation (strategies) impact load balancing and potential hot partitions.
+3. The effectiveness of various partitioning strategies (e.g., Murmur2 Hash, Round Robin, Sticky) when applied to different key patterns.
+4. Identify patterns that may cause data skew or underutilization of partitions.
+5. Optimize key design for better performance and scalability in Kafka-based applications.
+
+#### **2.1.2 `Key Simulation`**
+
+![analyzer-dashboard-key-simulation](.blog/images/analyzer-dashboard-key-simulation.png)
+
+The `Key Simulation` dropdown allows you to select different key generation patterns to simulate various real-world scenarios of key distribution. Each option represents a different strategy for generating keys, which can impact how records are distributed across Kafka partitions. Here's a brief explanation of each option:
+
+- **Normal**: _Keys are generated with a moderate level of repetition, simulating a typical use case where some keys are reused but not excessively. This pattern helps assess how well the partitioning strategies handle a balanced key distribution._
+- **Less Repetition**: _Keys are generated with low repetition, meaning each key is used infrequently. This pattern tests the partitioning strategies' ability to distribute records evenly when keys are unique or nearly unique._
+- **More Repetition**: _Keys are generated with high repetition, where certain keys are reused frequently. This pattern evaluates how partitioning strategies manage scenarios with a few dominant keys that could lead to hot partitions._
+- **No Repetition**: _Each key is unique, with no repetition at all. This pattern tests the partitioning strategies' performance in scenarios where every record has a distinct key, which can help identify how well the strategies distribute records when there is no key-based grouping._
+- **Hot Key Data Skew**: _A small subset of keys is used very frequently, while the majority of keys are used infrequently. This pattern simulates real-world scenarios where certain keys (e.g., popular user IDs or product IDs) dominate the record flow, leading to potential hot partitions. It helps evaluate how partitioning strategies cope with significant data skew._
+
+#### **2.1.3 The Bar Charts**
+
+![analyzer-dashboard-bar-charts](.blog/images/analyzer-dashboard-bar-charts.png)
+
+The five bar charts visualize the distribution of records across partitions for each partitioning strategy:
+
+1. **MurmurHash2** is a non-cryptographic hash function that was created by Austin Appleby in 2008, produces 32-bit hash values, is extremely fast (3-5x faster than MD5), has excellent distribution properties, and is used by Kafka, Redis, Cassandra, and many others. For more information, see the MurmurHash Wikipedia page.
+
+2. **Round Robin** is the simplest partitioning strategy that ignores the message key completely, distributes messages sequentially across partitions, and cycles through partitions in order: 0 → 1 → 2 → 3 → ... → 0 (repeats). The name Round Robin comes from a 16th-century French term meaning 'ribbon round' - signing documents in a circle so no one appears first!
+
+3. **Sticky partitioning** is a strategy that assigns messages to a single partition for a batch, sticks to that partition until the batch is full or a timeout occurs, and then switches to a new partition for the next batch. This approach reduces the overhead of frequent partition switching and improves throughput while still providing some level of distribution across partitions.
+
+4. **Range-Based Custom partitioning** is a strategy that assigns messages to partitions based on predefined key ranges, sorts unique keys and divides them into ranges corresponding to each partition, and ensures that similar keys are grouped together in the same partition. This approach is useful for scenarios where key locality is important, such as time-series data or ordered processing.
+
+5. **Custom partitioning** is a simple strategy that uses Python's built-in hash function to compute a hash value for each key, applies a modulo operation with the number of partitions to determine the target partition, and distributes messages based on the computed partition. This approach is straightforward but may not provide optimal distribution compared to more sophisticated hashing algorithms.
+
+Each bar represents a partition, and its height indicates the number of records assigned to that partition.  Each chart includes:
+- **X-Axis**: Represents the partition numbers (e.g., Partition 0, Partition 1, etc.).
+- **Y-Axis**: Represents the count of records assigned to each partition.
+- **Red Dashed Line**: Indicates the fair distribution baseline, showing the ideal number of records each partition should have if the distribution were perfectly balanced.
 
 ### **2.2 End-to-End Flow**
 The following sequence diagram illustrates the interactions between the user, Streamlit UI, and various components of the tool during its execution:
