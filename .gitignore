@@ -13,4 +13,3 @@ wheels/
 .DS_Store
 *.log
 .env
-*.csv
