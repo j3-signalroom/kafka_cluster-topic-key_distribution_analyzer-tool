@@ -5,7 +5,7 @@ import logging
 import streamlit as st
 import ast
 
-from utilities import setup_logging
+from utilities import setup_logging, create_admin_client, delete_topic_if_exists
 from key_distribution_analyzer import KeyDistributionAnalyzer
 from confluent_credentials import (fetch_confluent_cloud_credential_via_env_file,
                                    fetch_kafka_credentials_via_confluent_cloud_api_key)
@@ -30,6 +30,10 @@ __status__     = "dev"
 
 # Setup module logging
 logger = setup_logging()
+
+# Global variables to hold selection details
+tool_topic_name = ""
+tool_kafka_cluster_id = ""
 
 
 @st.cache_data(ttl=900, show_spinner="Fetching the Confluent Environment's [you have access to] Kafka Clusters' Kafka Credentials...")
@@ -94,9 +98,9 @@ def run_tests(kafka_cluster: Dict,
     """
     # Initialize Key Distribution Tester
     distribution_test = KeyDistributionAnalyzer(kafka_cluster_id=kafka_cluster['kafka_cluster_id'],
-                                              bootstrap_server_uri=kafka_cluster['bootstrap.servers'],
-                                              kafka_api_key=kafka_cluster['sasl.username'],
-                                              kafka_api_secret=kafka_cluster['sasl.password'])
+                                                bootstrap_server_uri=kafka_cluster['bootstrap.servers'],
+                                                kafka_api_key=kafka_cluster['sasl.username'],
+                                                kafka_api_secret=kafka_cluster['sasl.password'])
 
     # Run Key Distribution Test
     distribution_results, error_message = distribution_test.run_test(st,
@@ -116,7 +120,7 @@ def run_tests(kafka_cluster: Dict,
     return True, ""
 
 
-def delete_all_kafka_credentals_created(cc_credential: Dict, kafka_credentials: Dict) -> None:
+def cleanup_resources(cc_credential: Dict, kafka_credentials: Dict) -> None:
     """Delete all the Kafka Cluster API keys created for each Kafka Cluster instance.
     
     Arg(s):
@@ -128,17 +132,33 @@ def delete_all_kafka_credentals_created(cc_credential: Dict, kafka_credentials: 
     # Instantiate the IamClient class.
     iam_client = IamClient(iam_config=cc_credential)
 
-    # Delete all the Kafka Cluster API keys created for each Kafka Cluster instance
     progress_bar = st.progress(0, text="Start the deletion process...")
-    for index, kafka_credential in enumerate(kafka_credentials.values()):
+    index = 1
+
+    # Delete the topic created for the tests
+    bootstrap_server_uri=kafka_credentials[tool_kafka_cluster_id]['bootstrap.servers']
+    kafka_api_key=kafka_credentials[tool_kafka_cluster_id]['sasl.username']
+    kafka_api_secret=kafka_credentials[tool_kafka_cluster_id]['sasl.password']
+    admin_client = create_admin_client(bootstrap_server_uri, kafka_api_key, kafka_api_secret)
+    if not delete_topic_if_exists(admin_client, tool_topic_name):
+        logging.error("Failed to delete existing topic '%s'", tool_topic_name)
+        progress_bar.progress(min(index * 100 // (len(kafka_credentials) + 1), 100), text=f"Failed to delete existing topic '{tool_topic_name}'")
+    else:
+        logging.info("Deleted existing topic '%s'", tool_topic_name)
+        progress_bar.progress(min(index * 100 // (len(kafka_credentials) + 1), 100), text=f"Deleted existing topic '{tool_topic_name}'")
+    index += 1
+    
+    # Delete all the Kafka Cluster API keys created for each Kafka Cluster instance
+    for kafka_credential in kafka_credentials.values():
         http_status_code, error_message = iam_client.delete_api_key(api_key=kafka_credential["sasl.username"])
         if http_status_code != HttpStatus.NO_CONTENT:
             logging.warning("FAILED TO DELETE KAFKA CLUSTER API KEY %s FOR KAFKA CLUSTER %s BECAUSE THE FOLLOWING ERROR OCCURRED: %s.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'], error_message)
-            progress_bar.progress(min((index + 1) * 100 // len(kafka_credentials), 100), text=f"Failed to delete Kafka Cluster API key {kafka_credential['sasl.username']} for Kafka Cluster {kafka_credential['kafka_cluster_id']}.")
+            progress_bar.progress(min(index * 100 // len(kafka_credentials), 100), text=f"Failed to delete Kafka Cluster API key {kafka_credential['sasl.username']} for Kafka Cluster {kafka_credential['kafka_cluster_id']}.")
         else:
             logging.info("Kafka Cluster API key %s for Kafka Cluster %s deleted successfully.", kafka_credential["sasl.username"], kafka_credential['kafka_cluster_id'])
-            progress_bar.progress(min((index + 1) * 100 // len(kafka_credentials), 100), text=f"Deleted Kafka Cluster API key {kafka_credential['sasl.username']} for Kafka Cluster {kafka_credential['kafka_cluster_id']}.")
-        
+            progress_bar.progress(min(index * 100 // len(kafka_credentials), 100), text=f"Deleted Kafka Cluster API key {kafka_credential['sasl.username']} for Kafka Cluster {kafka_credential['kafka_cluster_id']}.")
+        index += 1
+    
     progress_bar.progress(100, text="Deletion process completed.")
 
 
@@ -253,7 +273,13 @@ def main():
                      type="secondary", 
                      disabled=not st.session_state['true_or_false']):
             st.session_state['true_or_false'] = False
-            delete_all_kafka_credentals_created(cc_credential, kafka_credentials)
+            
+            global tool_topic_name
+            global tool_kafka_cluster_id
+            tool_topic_name = topic_name
+            tool_kafka_cluster_id = selected_kafka_cluster_id
+
+            cleanup_resources(cc_credential, kafka_credentials)
             st.success("Cleanup completed. You can close the Tool now.")
             st.session_state['true_or_false'] = True
             st.snow()
