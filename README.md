@@ -5,7 +5,7 @@ This tool helps you **test**, **visualize**, and **validate** how record keys ar
 
 By surfacing patterns of **data skew**, **low-key cardinality**, or **biased hashing**, the analyzer reveals whether your partitioning strategy is truly balanced. The results empower you to:
 * Detect and diagnose **hot partitions** before they degrade performance.
-* Experiment with **key-salting** or **hashing strategies** to improve balance.
+* [Experiment with **key-salting** or **hashing strategies** to improve balance](.blog/how-to-mitigate-hot-partitions-in-a-kafka-topic.md).
 * Optimize **consumer parallelism** and **broker load** for predictable throughput at scale.
 
 Use this tool as a **proactive performance lens** on your Kafka topics—ensuring your cluster’s data distribution is as efficient, scalable, and reliable as the workloads it powers.
@@ -23,6 +23,7 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
       - [**1.3.1 Did you notice we prefix `uv run` to `streamlit run src/tool.py`?**](#131-did-you-notice-we-prefix-uv-run-to-streamlit-run-srctoolpy)
       - [**1.3.2 A word about Streamlit!**](#132-a-word-about-streamlit)
       - [**1.3.3 Troubleshoot Connectivity Issues (if any)**](#133-troubleshoot-connectivity-issues-if-any)
+      - [**1.3.4 Running the Tool's Unit Tests (i.e., PyTests)**](#134-running-the-tools-unit-tests-ie-pytests)
    + [**1.4 The Results**](#14-the-results)
       - [**1.4.1 Example of Hot Key Data Skew Simulation Results**](#141-example-of-hot-key-data-skew-simulation-results)
       - [**1.4.2 Example of Normal Key Distribution Simulation Results**](#142-example-of-normal-key-distribution-simulation-results)
@@ -37,6 +38,7 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
     + [**2.2 End-to-End Flow**](#22-end-to-end-flow)
 - [**3.0 Resources**](#30-resources)
     + [**3.1 Confluent Blogs and Documentation**](#31-confluent-blogs-and-documentation)
+    + [**3.2 Other Blogs and Documentation**](#32-other-blogs-and-documentation)
 <!-- tocstop -->
 
 ## **1.0 To get started**
@@ -229,6 +231,30 @@ Finally, run the following command to list all topics in your Kafka cluster:
 ```
 
 If the connection is successful, you should see a list of topics in your Kafka cluster. If you encounter any errors, double-check your credentials and network connectivity.
+
+#### **1.3.4 Running the Tool's Unit Tests (i.e., PyTests)**
+To ensure the tool is functioning as expected, you can run the provided unit tests. These tests cover various aspects of the tool's functionality, such as listing out all the Kafka clusters you have access too.
+
+**Navigate to the Project Root Directory**
+
+Open your Terminal and navigate to the root folder of the `kafka_cluster-topic-key_distribution_analyzer-tool/` repository that you have cloned. You can do this by executing:
+
+```shell
+cd path/to/kafka_cluster-topic-key_distribution_analyzer-tool/
+```
+
+> Replace `path/to/` with the actual path where your repository is located.
+
+Then enter the following commands below to run the test suites:
+```shell
+uv run pytest -s tests/test_environment_client.py
+```
+
+```shell
+uv run pytest -s tests/test_iam_client.py
+```
+
+You should see output indicating the results of the tests, including any failures or errors. If all tests pass, it confirms that the tool is working correctly.
 
 ### **1.4 The Results**
 
@@ -461,5 +487,7 @@ sequenceDiagram
 
 ### **3.1 Confluent Blogs and Documentation**
 - [The Importance of Standardized Hashing Across Producers](https://www.confluent.io/blog/standardized-hashing-across-java-and-non-java-producers/#:~:text=Description%20*%20%E2%8E%BC%20random:%20random%20distribution.%20*,of%20key%20(NULL%20keys%20are%20randomly%20partitioned))
-
 - [What is Apache Kafka® Partition Strategy?](https://www.confluent.io/learn/kafka-partition-strategy/)
+
+### **3.2 Other Blogs and Documentation**
+- [How to Mitigate Hot Partitions in a Kafka Topic](.blog/how-to-mitigate-hot-partitions-in-a-kafka-topic.md)
