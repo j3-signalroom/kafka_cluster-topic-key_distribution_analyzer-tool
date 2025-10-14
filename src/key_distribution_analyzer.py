@@ -5,14 +5,13 @@ from collections import defaultdict
 from typing import Dict, List, Tuple
 from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
-from confluent_kafka.admin import AdminClient
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 import logging
 import streamlit
 
-from utilities import setup_logging, create_topic_if_not_exists
+from utilities import setup_logging, create_admin_client, create_topic_if_not_exists
 
 
 __copyright__  = "Copyright (c) 2025 Jeffrey Jonathan Jennings"
@@ -63,7 +62,7 @@ class KeyDistributionAnalyzer:
             'sasl.username': kafka_api_key,
             'sasl.password': kafka_api_secret,
         }
-        self.admin_client = AdminClient(config)
+        self.admin_client = create_admin_client(bootstrap_server_uri, kafka_api_key, kafka_api_secret)
 
         # Setup the Kafka Consumer config
         self.kafka_consumer_config = {
