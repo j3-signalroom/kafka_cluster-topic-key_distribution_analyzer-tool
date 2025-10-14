@@ -35,7 +35,7 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
         - [**2.1.1 `Key Pattern`**](#211-key-pattern)
         - [**2.1.2 `Key Simulation`**](#212-key-simulation)
         - [**2.1.3 The Bar Charts**](#213-the-bar-charts)
-    + [**2.2 End-to-End Flow**](#22-end-to-end-flow)
+    + [**2.2 End-to-End Internal Tool Workflow**](#22-end-to-end-internal-tool-workflow)
 - [**3.0 Resources**](#30-resources)
     + [**3.1 Confluent Blogs and Documentation**](#31-confluent-blogs-and-documentation)
     + [**3.2 Other Blogs and Documentation**](#32-other-blogs-and-documentation)
@@ -326,7 +326,7 @@ Each bar represents a partition, and its height indicates the number of records 
 - **Y-Axis**: Represents the count of records assigned to each partition.
 - **Red Dashed Line**: Indicates the fair distribution baseline, showing the ideal number of records each partition should have if the distribution were perfectly balanced.
 
-### **2.2 End-to-End Flow**
+### **2.2 End-to-End Internal Tool Workflow**
 The following sequence diagram illustrates the interactions between the user, Streamlit UI, and various components of the tool during its execution:
 ```mermaid
 sequenceDiagram
