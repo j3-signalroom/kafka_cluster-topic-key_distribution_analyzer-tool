@@ -534,10 +534,10 @@ class KeyDistributionAnalyzer:
                 
                 summary_data.append({
                     'Partition Strategy': strategy_name.replace("_", " ").title(),
-                    'Total Records': sum(counts),
-                    'Average per Partition': f'{avg_count:.1f}',
-                    'Standard Deviation': f'{std_dev:.2f}',
-                    'Coefficient of Variation (%)': f'{cv:.1f}',
+                    'Total Records': f'{sum(counts):,}',
+                    'Average per Partition': f'{avg_count:,}',
+                    'Standard Deviation': f'{std_dev:,.2f}',
+                    'Coefficient of Variation (%)': f'{cv:,.1f}',
                     'Quality': self.__cv_quality_indicator(cv)
                 })
         

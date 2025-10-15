@@ -26,7 +26,7 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
       - [**1.3.4 Running the Tool's Unit Tests (i.e., PyTests)**](#134-running-the-tools-unit-tests-ie-pytests)
    + [**1.4 The Results**](#14-the-results)
       - [**1.4.1 Example of Hot Key Data Skew Simulation Results**](#141-example-of-hot-key-data-skew-simulation-results)
-      - [**1.4.2 Example of Normal Key Distribution Simulation Results**](#142-example-of-normal-key-distribution-simulation-results)
+      - [**1.4.2 Example of Typical Key Distribution Simulation Results**](#142-example-of-typical-key-distribution-simulation-results)
       - [**1.4.3 Example of Low Cardinality Key Distribution Simulation Results**](#143-example-of-low-cardinality-key-distribution-simulation-results)
       - [**1.4.4 Example of High Cardinality Key Distribution Simulation Results**](#144-example-of-high-cardinality-key-distribution-simulation-results)
       - [**1.4.5 Example of No Repetition Key Distribution Simulation Results**](#145-example-of-no-repetition-key-distribution-simulation-results)
@@ -263,8 +263,8 @@ Once the tool completes its analysis, it will display a dashboard with visualiza
 #### **1.4.1 Example of Hot Key Data Skew Simulation Results**
 ![analyzer-dashboard-hot-key-data-skew-key-simulation](.blog/images/analyzer-dashboard-hot-key-data-skew-key-simulation.png)
 
-#### **1.4.2 Example of Normal Key Distribution Simulation Results**
-![analyzer-dashboard-normal-key-simulation](.blog/images/analyzer-dashboard-normal-key-simulation.png)
+#### **1.4.2 Example of Typical Key Distribution Simulation Results**
+![analyzer-dashboard-moderate-repetition-key-simulation](.blog/images/analyzer-dashboard-moderate-repetition-key-simulation.png)
 
 #### **1.4.3 Example of Low Cardinality Key Distribution Simulation Results**
 ![analyzer-dashboard-less-repetition-key-simulation](.blog/images/analyzer-dashboard-less-repetition-key-simulation.png)
@@ -299,7 +299,7 @@ The dashboard provides a visual representation of how different partitioning str
 
 The `Key Simulation` dropdown allows you to select different key generation patterns to simulate various real-world scenarios of key distribution. Each option represents a different strategy for generating keys, which can impact how records are distributed across Kafka partitions. Here's a brief explanation of each option:
 
-- **Normal**: _Keys are generated with a moderate level of repetition, simulating a typical use case where some keys are reused but not excessively. This pattern helps assess how well the partitioning strategies handle a balanced key distribution._
+- **Typical**: _Keys are generated with a moderate level of repetition, simulating a typical use case where some keys are reused but not excessively. This pattern helps assess how well the partitioning strategies handle a balanced key distribution._
 - **Less Repetition**: _Keys are generated with low repetition, meaning each key is used infrequently. This pattern tests the partitioning strategies' ability to distribute records evenly when keys are unique or nearly unique._
 - **More Repetition**: _Keys are generated with high repetition, where certain keys are reused frequently. This pattern evaluates how partitioning strategies manage scenarios with a few dominant keys that could lead to hot partitions._
 - **No Repetition**: _Each key is unique, with no repetition at all. This pattern tests the partitioning strategies' performance in scenarios where every record has a distinct key, which can help identify how well the strategies distribute records when there is no key-based grouping._
@@ -412,7 +412,7 @@ sequenceDiagram
     
     loop For each record
         KDA->>KDA: Generate key based on simulation type
-        alt Normal
+        alt Typical
             KDA->>KDA: key = pattern + (id % 100)
         else Less Repetition
             KDA->>KDA: key = pattern + (id % 1000)
