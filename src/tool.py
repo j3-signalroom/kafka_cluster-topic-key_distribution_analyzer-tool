@@ -225,7 +225,7 @@ def main():
                                                     disabled=not st.session_state['true_or_false'])
                         button_disabled = button_disabled or not bool(key_pattern.strip())
                     with col2:
-                        key_simulation_options = ["Normal", "Less Repetition", "More Repetition", "No Repetition", "Hot Key (data skew)"]
+                        key_simulation_options = ["Typical (Moderate Repetition)", "Less Repetition", "More Repetition", "No Repetition", "Hot Key (data skew)"]
                         selected_key_simulation = st.selectbox(index=0,
                                                                label='Key Simulation:',
                                                                options=key_simulation_options,
