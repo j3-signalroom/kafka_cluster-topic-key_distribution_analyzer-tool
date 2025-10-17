@@ -32,7 +32,7 @@ __status__     = "dev"
 logger = setup_logging()
 
 
-@st.cache_data(ttl=900, show_spinner="Fetching the Confluent Environment's [you have access to] Kafka Clusters' Kafka Credentials...")
+@st.cache_data(show_spinner="Fetching the Confluent Environment's [you have access to] Kafka Clusters' Kafka Credentials...")
 def fetch_environment_with_kakfa_credentials() -> tuple[Dict, Dict, Dict, Dict]:
     """Fetch the environment and Kafka credentials.
 
