@@ -15,6 +15,7 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
 <!-- toc -->
 - [**1.0 To get started**](#10-to-get-started)
    + [**1.1 Download the Tool**](#11-download-the-tool)
+      + [**1.1.1 Special Note on two custom dependencies**](#111-special-note-on-two-custom-dependencies)
    + [**1.2 Configure the Tool**](#12-configure-the-tool)
       - [**1.2.1 Create a Dedicated Service Account for the Analyzer Tool**](#121-create-a-dedicated-service-account-for-the-analyzer-tool)
       - [**1.2.2 Create the `.env` file**](#122-create-the-env-file)
@@ -55,6 +56,13 @@ Since this project was built using [**`uv`**](https://docs.astral.sh/uv/), plea
    ```shell
    uv sync
    ```
+
+#### **1.1.1 Special Note on two custom dependencies**
+This project has _two custom dependencies_ that we want to bring to your attention:
+
+1. **[`cc-clients-python_lib`](https://github.com/j3-signalroom/cc-clients-python_lib)**: _This library offers a simple way to interact with Confluent Cloud services, including the Metrics API. It makes it easier to send API requests and manage responses. It is used in this project to connect to the Confluent Cloud Metrics API and retrieve topic consumption metrics._
+
+2. **[`aws-clients-python_lib`](https://github.com/j3-signalroom/aws-clients-python_lib)**: _This library is used to interact with AWS services, specifically AWS Secrets Manager in this case. It enables the tool to securely retrieve secrets stored in AWS Secrets Manager._
 
 ### **1.2 Configure the Tool**
 
