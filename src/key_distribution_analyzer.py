@@ -28,11 +28,11 @@ logger = setup_logging()
 
 # Key Simulation Types
 class KeySimulationType(IntEnum):
-    NORMAL = 0
-    LESS_REPETITION = 1
-    MORE_REPETITION = 2
-    NO_REPETITION = 3
-    HOT_KEY_DATA_SKEW = 4
+    MODERATE_REPETITION = 0 # Moderate key repetition is typical in many Kafka Producer clients
+    LESS_REPETITION = 1     # Less key repetition simulates a wider variety of keys
+    MORE_REPETITION = 2     # More key repetition increases the likelihood of hot keys
+    NO_REPETITION = 3       # No key repetition sends all messages with unique keys
+    HOT_KEY_DATA_SKEW = 4   # Hot key data skew simulates a scenario where a few keys receive the majority of the traffic
 
 
 class KeyDistributionAnalyzer:
@@ -75,7 +75,7 @@ class KeyDistributionAnalyzer:
             'fetch.min.bytes': 1,
             'log_level': 3,            
             'enable.partition.eof': True,
-            'fetch.message.max.bytes': 10485760, # 10MB max message size
+            'fetch.message.max.bytes': 10485760, # 10MB max record size
             'queued.min.messages': 1000,     
             'enable.metrics.push': False         # Disable metrics pushing for consumers to registered JMX MBeans.  However, is really being set to False to not expose unneccessary noise to the logging output
         }
@@ -92,11 +92,11 @@ class KeyDistributionAnalyzer:
         self.partition_mapping = defaultdict(list)
 
     def __delivery_callback(self, error_message: str, record) -> None:
-        """Callback invoked when a message is delivered or fails.
+        """Callback invoked when a record is delivered or fails.
 
         Args:
             error_message (str): Error information if delivery failed, else None.
-            record: The message that was produced.
+            record: The record that was produced.
 
         Return(s):
             None
@@ -130,7 +130,7 @@ class KeyDistributionAnalyzer:
         for id in range(record_count):
             try:
                 match key_simulation_type:
-                    case KeySimulationType.NORMAL:
+                    case KeySimulationType.MODERATE_REPETITION:
                         key_pattern = key_patterns[id % len(key_patterns)]
                         key_str = f"{key_pattern}{id % 100}"
                     case KeySimulationType.LESS_REPETITION:
@@ -241,7 +241,7 @@ class KeyDistributionAnalyzer:
             distribution = strategy_func(keys, partition_count)
             results[strategy_name] = distribution
             
-            # Print distribution
+            # Log distribution
             for partition in sorted(distribution.keys()):
                 count = distribution[partition]
                 percentage = (count / len(keys)) * 100
@@ -317,35 +317,43 @@ class KeyDistributionAnalyzer:
         h ^= h >> 15
 
         return h
-    
-    def __round_robin_strategy(self, keys, partition_count: int):
-        """Round-robin partitioning (used when key is null)"""
+
+    def __round_robin_strategy(self, keys, partition_count: int) -> Dict[int, int]:
+        """Round-robin partitioning (used when key is null).
+
+        1. Ignores the key completely.
+        2. Distributes messages sequentially across partitions.
+        3. Cycles through partitions in order: 0 → 1 → 2 → 3 → ... → 0 (repeats).
+
+        Args:
+            keys: List of keys (ignored - round robin is for null keys)
+            partition_count: Number of partitions
+
+        Return(s):
+            Dict[int, int]: Distribution of keys across partitions.
+        """
         distribution = defaultdict(int)
         
-        for index, key in enumerate(keys):
+        for index, _ in enumerate(keys):
             # Ignore the key, just use record order
             partition = index % partition_count
             distribution[partition] += 1
-        
+
         return distribution
-    
-    def __sticky_strategy(self, keys, partition_count: int, batch_size=100, linger_ms=10):
-        """
-        Kafka 4 Uniform Sticky Partitioner (Enhanced)
-        
-        Kafka 4 improvements over 2.4:
-        1. Better initial partition selection (randomized)
-        2. Smarter partition switching (avoids current partition)
-        3. Considers partition availability
-        4. Optimized batch accumulation
-        
-        For null keys only! With keys, uses MurmurHash2.
-        
+
+    def __sticky_strategy(self, keys, partition_count: int, batch_size=100, linger_ms=10) -> Dict[int, int]:
+        """Kafka 4 Uniform Sticky Partitioner (Enhanced) over Kafka 2.4 version, because it includes
+        better initial partition selection (randomized), smarter partition switching (avoids
+        current partition), considers partition availability, and optimized batch accumulation.
+
         Args:
             keys: List of keys (ignored - sticky is for null keys)
             partition_count: Number of partitions
             batch_size: Messages per batch before switching (default: 100)
             linger_ms: Simulated linger time (affects batching)
+
+        Return(s):
+            Dict[int, int]: Distribution of keys across partitions.
         """
         import random
         
@@ -382,14 +390,17 @@ class KeyDistributionAnalyzer:
         
         return distribution
     
-    def __select_next_partition_kafka4(self, current_partition: int, partition_count: int):
-        """
-        Kafka 4 partition selection algorithm
-        
-        Improvements over Kafka 2.4:
-        - Avoids recently used partition
-        - Random selection for better load distribution
-        - Handles single partition edge case
+    def __select_next_partition_kafka4(self, current_partition: int, partition_count: int) -> int:
+        """Kafka 4 partition selection algorithm is an improvement over 2.4, because it avoids
+        recently used partitions, uses random selection for better load distribution, and 
+        handles single partition edge case.
+
+        Arg(s):
+            current_partition (int): The current partition being used.
+            partition_count (int): Total number of partitions.
+
+        Return(s):
+            int: The next partition to use.
         """
         import random
         
@@ -397,14 +408,27 @@ class KeyDistributionAnalyzer:
             return 0
         
         # Available partitions (exclude current)
-        available = [p for p in range(partition_count) if p != current_partition]
+        available_partitions = [partition for partition in range(partition_count) if partition != current_partition]
         
         # Kafka 4: Weighted random selection
         # In production, this considers broker load, but we'll use simple random
-        return random.choice(available)
-    
-    def __range_based_customer_strategy(self, keys, partition_count: int):
-        """Range-based partitioning (partition by key ranges)"""
+        return random.choice(available_partitions)
+
+    def __range_based_customer_strategy(self, keys, partition_count: int) -> Dict[int, int]:
+        """Range-based partitioning (partition by key ranges).
+        
+        1. Assigns records to partitions based on predefined key ranges.
+        2. Sorts unique keys and divides them into ranges corresponding to each partition.
+        3. Ensures that similar keys are grouped together in the same partition.
+        
+        Args:
+            keys: List of keys to partition.
+            partition_count: Number of partitions.
+            
+            
+        Return(s):
+            Dict[int, int]: Distribution of keys across partitions.
+        """
         distribution = defaultdict(int)
         
         # Sort unique keys and create ranges
@@ -424,8 +448,20 @@ class KeyDistributionAnalyzer:
         
         return distribution
     
-    def __custom_strategy(self, keys, partition_count: int):
-        """Simple modulo hash (not recommended for production)"""
+    def __custom_strategy(self, keys, partition_count: int) -> Dict[int, int]:
+        """Simple modulo hash (not recommended for production):
+        
+        1. Uses Python's built-in hash function to compute a hash value for each key.
+        2. Applies a modulo operation with the number of partitions to determine the target partition.
+        3. Distributes messages based on the computed partition.
+        
+        Args:
+            keys: List of keys to partition.
+            partition_count: Number of partitions.
+
+        Return(s):
+            Dict[int, int]: Distribution of keys across partitions.
+        """
         distribution = defaultdict(int)
         
         for key in keys:
@@ -519,7 +555,7 @@ class KeyDistributionAnalyzer:
 
         # Partition strategy descriptions
         st.write("**MurmurHash2** is a non-cryptographic hash function that *was created by Austin Appleby in 2008*, *produces 32-bit hash values*, *is extremely fast (3-5x faster than MD5)*, *has excellent distribution properties*, and *is used by Kafka, Redis, Cassandra, and many others*.  For more information, see the [MurmurHash Wikipedia page](https://en.wikipedia.org/wiki/MurmurHash).")
-        st.write("**Round Robin** is the simplest partitioning strategy that _ignores the message key completely_, _distributes messages sequentially across partitions_, and _cycles through partitions in order: 0 → 1 → 2 → 3 → ... → 0 (repeats)_. The name **Round Robin** comes from a 16th-century French term meaning 'ribbon round' - signing documents in a circle so no one appears first!")
+        st.write("**Round Robin** is the simplest partitioning strategy that _ignores the record key completely_, _distributes messages sequentially across partitions_, and _cycles through partitions in order: 0 → 1 → 2 → 3 → ... → 0 (repeats)_. The name **Round Robin** comes from a 16th-century French term meaning 'ribbon round' - signing documents in a circle so no one appears first!")
         st.write("**Sticky** partitioning is a strategy that _assigns messages to a single partition for a batch_, _sticks to that partition until the batch is full or a timeout occurs_, and then _switches to a new partition for the next batch_. This approach _reduces the overhead of frequent partition switching_ and _improves throughput_ while still providing some level of distribution across partitions.")
         st.write("**Range-Based Custom** partitioning is a strategy that _assigns messages to partitions based on predefined key ranges_, _sorts unique keys and divides them into ranges corresponding to each partition_, and _ensures that similar keys are grouped together in the same partition_. This approach is useful for scenarios where key locality is important, such as time-series data or ordered processing.")
         st.write("**Custom** partitioning is a simple strategy that _uses Python's built-in hash function to compute a hash value for each key_, _applies a modulo operation with the number of partitions to determine the target partition_, and _distributes messages based on the computed partition_. This approach is straightforward but may not provide optimal distribution compared to more sophisticated hashing algorithms.")
@@ -549,8 +585,8 @@ class KeyDistributionAnalyzer:
         st.write("**Standard Deviation (SD)** measures the amount of variation or dispersion in a set of values.  A low SD indicates that the values tend to be close to the mean, while a high SD indicates that the values are spread out over a wider range.")
         st.write("**Coefficient of Variation (CV)** is a standardized measure of dispersion of a probability distribution or frequency distribution.  It is often expressed as a percentage and is defined as the ratio of the standard deviation to the mean.  A lower CV indicates a more uniform distribution, while a higher CV indicates greater variability.")
         st.write("_Generally, a CV less than 20% is considered good, indicating a relatively uniform distribution across partitions. A CV between 20% and 50% suggests that the distribution might be uneven and could benefit from optimization. A CV over 50% indicates severe data skew and requires immediate attention._")
-        st.write("**Quality indicators**: ✅ Good Distribution (CV < 20%), ⚠️ Moderate Data Skew (CV ≥ 20% and < 51%), ❌ Severe Data Skew (CV ≥ 51%)")
-        st.write("**_Note: These metrics are based on the produced records and may vary with different key patterns, record counts, and partition counts.  They provide insights into how well each partitioning strategy distributes messages across partitions._**")
+        st.write("**Quality indicators**:  ✅ Good Distribution (CV < 20%), ⚠️ Moderate Data Skew (CV ≥ 20% and < 51%), ❌ Severe Data Skew (CV ≥ 51%)")
+        st.write("**_Note:  These metrics reflect real-world record production behavior and reveal how different key patterns, record volumes, and partition counts shape data distribution. They provide detailed insight into how effectively each partitioning strategy balances load across partitions—highlighting the performance dynamics behind truly scalable Kafka topics._**")
 
     def __cv_quality_indicator(self, cv: float, show_description: bool = True) -> str:
         """Get quality indicator based on Coefficient of Variation (CV).

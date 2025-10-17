@@ -243,7 +243,7 @@ def main():
                     with col4:
                         selected_record_count = st.selectbox(index=2,
                                                              label='Record Count:',
-                                                             options=["10", "100", "1,000", "10,000", "100,000"],
+                                                             options=["10", "100", "1,000", "10,000", "100,000", "1,000,000"],
                                                              help="Select the number of records to produce.",
                                                              disabled=not st.session_state['true_or_false'])
         if st.button("Run Key Distribution Analysis Tests",
