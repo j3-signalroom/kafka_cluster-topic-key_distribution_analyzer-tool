@@ -106,7 +106,7 @@ def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: i
         return False
 
     # Create new topic
-    logging.info(f"Creating Kafka topic '{topic_name}' with {partition_count} partitions")
+    logging.info("Creating Kafka topic '%s' with %d partitions", topic_name, partition_count)
 
     new_topic = NewTopic(topic=topic_name,
                          num_partitions=partition_count,
@@ -123,9 +123,9 @@ def create_topic_if_not_exists(admin_client, topic_name: str, partition_count: i
     for topic, future in futures.items():
         try:
             future.result()  # Block until topic is created
-            logging.info(f"Topic '{topic}' created successfully")
+            logging.info("Topic '%s' created successfully", topic)
         except Exception as e:
-            logging.error(f"Failed to create topic '{topic}': {e}")
+            logging.error("Failed to create topic '%s': %s", topic, e)
             return False
         
     return True
@@ -144,21 +144,21 @@ def delete_topic_if_exists(admin_client, topic_name: str) -> bool:
     try:
         topic_list = admin_client.list_topics(timeout=10)
     except Exception as e:
-        logging.error(f"Failed to list topics: {e}")
+        logging.error("Failed to list topics: %s", e)
         return False
 
     if topic_name in topic_list.topics:
-        logging.info(f"Deleting Kafka topic '{topic_name}'.")
+        logging.info("Deleting Kafka topic '%s'.", topic_name)
         futures = admin_client.delete_topics([topic_name])
 
         for topic, future in futures.items():
             try:
                 future.result()  # Block until topic is deleted
-                logging.info(f"Topic '{topic}' deleted successfully")
+                logging.info("Topic '%s' deleted successfully", topic)
             except Exception as e:
-                logging.error(f"Failed to delete topic '{topic}': {e}")
+                logging.error("Failed to delete topic '%s': %s", topic, e)
                 return False
         return True
     else:
-        logging.info(f"Kafka topic '{topic_name}' does not exist.")
+        logging.info("Kafka topic '%s' does not exist.", topic_name)
         return True
