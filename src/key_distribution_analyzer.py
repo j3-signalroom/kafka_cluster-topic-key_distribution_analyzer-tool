@@ -602,7 +602,7 @@ class KeyDistributionAnalyzer:
         if summary_data:
             st.subheader('Partition Strategy Metrics Summary')
             summary_df = pd.DataFrame(summary_data)
-            st.dataframe(summary_df, use_container_width=True, hide_index=True)
+            st.dataframe(summary_df, width=True, hide_index=True)
 
         st.write("**Standard Deviation (SD)** measures the amount of variation or dispersion in a set of values.  A low SD indicates that the values tend to be close to the mean, while a high SD indicates that the values are spread out over a wider range.")
         st.write("**Coefficient of Variation (CV)** is a standardized measure of dispersion of a probability distribution or frequency distribution.  It is often expressed as a percentage and is defined as the ratio of the standard deviation to the mean.  A lower CV indicates a more uniform distribution, while a higher CV indicates greater variability.")
