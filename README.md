@@ -15,7 +15,7 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
 <!-- toc -->
 - [**1.0 To get started**](#10-to-get-started)
    + [**1.1 Download the Tool**](#11-download-the-tool)
-      + [**1.1.1 Special Note on two custom dependencies**](#111-special-note-on-two-custom-dependencies)
+      - [**1.1.1 Special Note on two custom dependencies**](#111-special-note-on-two-custom-dependencies)
    + [**1.2 Configure the Tool**](#12-configure-the-tool)
       - [**1.2.1 Create a Dedicated Service Account for the Analyzer Tool**](#121-create-a-dedicated-service-account-for-the-analyzer-tool)
       - [**1.2.2 Create the `.env` file**](#122-create-the-env-file)
@@ -33,9 +33,9 @@ Use this tool as a **proactive performance lens** on your Kafka topics—ensurin
       - [**1.4.5 Example of No Repetition Key Distribution Simulation Results**](#145-example-of-no-repetition-key-distribution-simulation-results)
 - [**2.0 How the Tool Works**](#20-how-the-tool-works)
     + [**2.1 The Dashboard**](#21-the-dashboard)
-        - [**2.1.1 `Key Pattern`**](#211-key-pattern)
-        - [**2.1.2 `Key Simulation`**](#212-key-simulation)
-        - [**2.1.3 The Bar Charts**](#213-the-bar-charts)
+      - [**2.1.1 `Key Pattern`**](#211-key-pattern)
+      - [**2.1.2 `Key Simulation`**](#212-key-simulation)
+      - [**2.1.3 The Bar Charts**](#213-the-bar-charts)
     + [**2.2 End-to-End Internal Tool Workflow**](#22-end-to-end-internal-tool-workflow)
 - [**3.0 Resources**](#30-resources)
     + [**3.1 Confluent Blogs and Documentation**](#31-confluent-blogs-and-documentation)
@@ -492,6 +492,7 @@ sequenceDiagram
 ```
 
 ## **3.0 Resources**
+- [Medium Article: "You can't optimize what you can't measure"](https://thej3.com/you-cant-optimize-what-you-can-t-measure-4db0cbf99b9b)
 
 ### **3.1 Confluent Blogs and Documentation**
 - [The Importance of Standardized Hashing Across Producers](https://www.confluent.io/blog/standardized-hashing-across-java-and-non-java-producers/#:~:text=Description%20*%20%E2%8E%BC%20random:%20random%20distribution.%20*,of%20key%20(NULL%20keys%20are%20randomly%20partitioned))

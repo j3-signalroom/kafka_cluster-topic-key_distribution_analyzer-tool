@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Dict, List, Tuple
 from dotenv import load_dotenv
@@ -111,7 +112,8 @@ def run_tests(kafka_cluster: Dict,
     if not distribution_results:
         return False, error_message
 
-    logging.info("Key Distribution Analysis Results: %s", distribution_results)
+    beautified = json.dumps(distribution_results, indent=4, sort_keys=True)
+    logging.info("Key Distribution Analysis Results: \n%s", beautified)
 
     return True, ""
 
@@ -211,7 +213,7 @@ def main():
             test_col1, test_col2 = st.columns(2)
             with test_col1:
                 topic_name = st.text_input("Enter your Kafka Producer topic name:", 
-                                           placeholder=DEFAULT_KAFKA_TOPIC_NAME,
+                                           placeholder=f"For example: {DEFAULT_KAFKA_TOPIC_NAME}",
                                            help="Enter the name of the Kafka topic to produce to.",
                                            disabled=not st.session_state['true_or_false'])
                 button_disabled = not bool(topic_name.strip()) or not st.session_state['true_or_false']
@@ -220,7 +222,7 @@ def main():
                     col1, col2, col3, col4 = st.columns(4)
                     with col1:
                         key_pattern = st.text_input("Key Pattern:", 
-                                                    placeholder=DEFAULT_KAFKA_TOPIC_KEY_PATTERN,
+                                                    placeholder=f"For example: {DEFAULT_KAFKA_TOPIC_KEY_PATTERN}",
                                                     help="Enter a list of strings representing the key pattern. Example: ['tenant_id-', 'user_id-', 'object_id-']",
                                                     disabled=not st.session_state['true_or_false'])
                         button_disabled = button_disabled or not bool(key_pattern.strip())
