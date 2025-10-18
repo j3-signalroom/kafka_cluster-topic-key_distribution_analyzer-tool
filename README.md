@@ -262,6 +262,18 @@ uv run pytest -s tests/test_environment_client.py
 uv run pytest -s tests/test_iam_client.py
 ```
 
+```shell
+uv run pytest -s tests/test_produce_test_records.py
+```
+
+```shell
+uv run pytest -s tests/test_analyze_distribution.py
+```
+
+```shell
+uv run pytest -s tests/test_partition_strategies.py
+```
+
 You should see output indicating the results of the tests, including any failures or errors. If all tests pass, it confirms that the tool is working correctly.
 
 ### **1.4 The Results**

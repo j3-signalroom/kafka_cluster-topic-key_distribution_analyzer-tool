@@ -11,6 +11,7 @@ import pandas as pd
 import logging
 import streamlit
 import mmh3
+import random
 
 from utilities import setup_logging, create_admin_client, create_topic_if_not_exists
 
@@ -376,8 +377,6 @@ class KeyDistributionAnalyzer:
         Return(s):
             Dict[int, int]: Distribution of keys across partitions.
         """
-        import random
-        
         distribution = defaultdict(int)
         
         # Kafka 4: Random initial partition selection
@@ -445,7 +444,6 @@ class KeyDistributionAnalyzer:
         Args:
             keys: List of keys to partition.
             partition_count: Number of partitions.
-            
             
         Return(s):
             Dict[int, int]: Distribution of keys across partitions.
