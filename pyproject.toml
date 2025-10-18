@@ -1,6 +1,6 @@
 [project]
 name = "kafka_cluster-topic-key-distribution-analyzer-tool"
-version = "0.01.09.000"
+version = "0.01.10.000"
 description = "Kafka Topic Key Distribution Analyzer Tool"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -51,6 +51,7 @@ level = "INFO"
 handlers = ["file", "console"]
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 log_file = "kafka_cluster-topic-key-distribution-analyzer-tool.log"
 log_file_level = "INFO"
 log_file_format = "%(asctime)s - %(levelname)s - %(funcName)s - %(message)s"
