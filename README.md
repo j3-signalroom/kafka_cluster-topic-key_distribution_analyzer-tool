@@ -492,6 +492,7 @@ sequenceDiagram
 ```
 
 ## **3.0 Resources**
+- [Medium Article: "You can't optimize what you can't measure"](https://medium.com/p/4db0cbf99b9b/edit)
 
 ### **3.1 Confluent Blogs and Documentation**
 - [The Importance of Standardized Hashing Across Producers](https://www.confluent.io/blog/standardized-hashing-across-java-and-non-java-producers/#:~:text=Description%20*%20%E2%8E%BC%20random:%20random%20distribution.%20*,of%20key%20(NULL%20keys%20are%20randomly%20partitioned))
