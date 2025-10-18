@@ -246,7 +246,7 @@ class KeyDistributionAnalyzer:
         results = {}
         
         for strategy_name, strategy_func in strategies.items():
-            logging.info("%s Strategy ---", strategy_name.upper().replace('_', ' '))
+            logging.info("%s Strategy:", strategy_name.upper().replace('_', ' '))
             distribution = strategy_func(keys, partition_count)
             results[strategy_name] = distribution
             
@@ -602,7 +602,7 @@ class KeyDistributionAnalyzer:
         if summary_data:
             st.subheader('Partition Strategy Metrics Summary')
             summary_df = pd.DataFrame(summary_data)
-            st.dataframe(summary_df, width=True, hide_index=True)
+            st.dataframe(summary_df, width="stretch", hide_index=True)
 
         st.write("**Standard Deviation (SD)** measures the amount of variation or dispersion in a set of values.  A low SD indicates that the values tend to be close to the mean, while a high SD indicates that the values are spread out over a wider range.")
         st.write("**Coefficient of Variation (CV)** is a standardized measure of dispersion of a probability distribution or frequency distribution.  It is often expressed as a percentage and is defined as the ratio of the standard deviation to the mean.  A lower CV indicates a more uniform distribution, while a higher CV indicates greater variability.")
@@ -705,10 +705,10 @@ class KeyDistributionAnalyzer:
         producer_cv = (producer_std_dev / producer_mean_count) * 100  # Coefficient of variation %
 
         logging.info("=== Producer Distribution Quality Metrics ===")
-        logging.info("Mean records per partition: %.1f", producer_mean_count)
-        logging.info("Standard deviation: %.1f", producer_std_dev)
-        logging.info("Coefficient of variation: %.1f%%", producer_cv)
-        logging.info("Distribution quality: %s", 'Good' if producer_cv < 20 else 'Poor')
+        logging.info("Mean Records per Partition: %.1f", producer_mean_count)
+        logging.info("Standard Deviation: %.1f", producer_std_dev)
+        logging.info("Coefficient of Variation: %.1f%%", producer_cv)
+        logging.info("Quality: %s", self.__cv_quality_indicator(producer_cv))
 
         # 8. Finalize and return results
         progress_bar.progress(1.0, text="Analysis tests are complete")

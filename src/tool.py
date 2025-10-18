@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Dict, List, Tuple
 from dotenv import load_dotenv
@@ -111,7 +112,8 @@ def run_tests(kafka_cluster: Dict,
     if not distribution_results:
         return False, error_message
 
-    logging.info("Key Distribution Analysis Results: %s", distribution_results)
+    beautified = json.dumps(distribution_results, indent=4, sort_keys=True)
+    logging.info("Key Distribution Analysis Results: \n%s", beautified)
 
     return True, ""
 
